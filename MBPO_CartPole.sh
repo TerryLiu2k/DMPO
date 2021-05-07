@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python -c "import algorithms.config.MBPO_mujoco"
