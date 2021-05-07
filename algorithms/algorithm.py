@@ -5,7 +5,7 @@ import gym
 import time
 import random
 from tqdm import tqdm
-from utils import combined_shape
+from .utils import combined_shape
 
 class ReplayBuffer:
     """

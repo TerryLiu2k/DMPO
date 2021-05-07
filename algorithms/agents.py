@@ -1,5 +1,5 @@
 from copy import deepcopy
-from models import *
+from .models import *
 """
     Not implemented yet:
         PPO, SAC continous action, MBPO continous action 
@@ -255,6 +255,7 @@ class MBPO(SAC):
             loss = loss + self.ps[i](o, a, r, o2, d)
         self.p_optimizer.zero_grad()
         loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
         self.p_optimizer.step()
         return None
     
