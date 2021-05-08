@@ -1,4 +1,6 @@
 from copy import deepcopy
+from concurrent.futures import ProcessPoolExecutor
+from utils import dictSelect, dictSplit, listStack
 from .models import *
 """
     Not implemented yet:
@@ -93,13 +95,15 @@ class QLearning(nn.Module):
                 
         
     def act(self, o, deterministic=False):
-        """returns a scalar, not differentiable"""
+        """
+        o and a of shape [b, ..],
+        not differentiable
+        """
         with torch.no_grad():
-            o = o.unsqueeze(0)
             q1 = self.q1(o)
             q2 = self.q2(o)
             q = torch.min(q1, q2)
-            a = q.argmax(dim=1)[0]
+            a = q.argmax(dim=1)
             if not deterministic and random.random()<self.eps:
                 return torch.as_tensor(self.action_space.sample())
             return a
@@ -121,22 +125,17 @@ class SAC(QLearning):
             self.pi = CategoricalActor(**pi_args._toDict())
         self.pi_optimizer = Adam(self.pi.parameters(), lr=pi_args.lr)
 
-    def act(self, o, deterministic=False, batched=False):
+    def act(self, o, deterministic=False):
         """
+            o of shape [b, ..]
             not differentiable
             called during env interaction and model rollout
             not used when updating q
         """
         if self.random and not deterministic:
-            if batched:
-                probs = torch.ones(o.shape[0], self.action_space.n)/self.action_space.n
-                return Categorical(probs).sample().to(o.device)
-            else:
-                probs = torch.ones(1, self.action_space.n)/self.action_space.n
-                return Categorical(probs).sample().to(o.device)
+            probs = torch.ones(o.shape[0], self.action_space.n)/self.action_space.n
+            return Categorical(probs).sample().to(o.device)
         with torch.no_grad():
-            if not batched:
-                o = o.unsqueeze(0)
             if isinstance(self.action_space, Discrete):
                 a = self.pi(o)
                 if (torch.isnan(a).any()):
@@ -151,8 +150,6 @@ class SAC(QLearning):
                 a = self.pi(o, deterministic)
                 if isinstance(a, tuple):
                     a = a[0]
-            if not batched:
-                a = a.squeeze(dim=0)
             return a.detach()
     
     def updatePi(self, data):
@@ -235,7 +232,6 @@ class SAC(QLearning):
                         p_targ.data.add_(self.target_sync_rate * p.data)
         
 class MBPO(SAC):
-    """  """
     def __init__(self, logger, env_fn, p_args, q_args, pi_args, alpha, gamma, target_sync_rate, **kwargs):
         """
             q_net is the network class
@@ -272,5 +268,55 @@ class MBPO(SAC):
                 r, s1, d = p(s, a)
             else:
                 return None
-                
         return  r, s1, d
+    
+class MultiAgent(nn.Module):
+    def __init__(self, n_agent, **agent_args):
+        """
+            Assumes s, a, r, d of shape [b, n_agent, ...]
+            (since in general, d may be different for each agent)
+        """
+        super().__init__()
+        self.agent_fn = agent_args.agent
+        self.agents = nn.ModuleList(agent(**agent_args._toDict()))
+        self.pool = ProcessPoolExecutor(n_agent)
+       
+        result = list(pool.map(reaction, arg_list, chunksize= 1))
+        
+    def _eval(args):
+        """ invokes the agents in parallel"""
+        self = args.pop('self')
+        rank = args.pop('rank')
+        func = getattr(self.agents[rank], args.pop('func'))
+        result = func(**args)
+        return result
+        
+    def roll(self, S, A):
+        inputs = dictSplit({'s': S, 'a': A, 'func': 'roll', 'self':self})
+        results = list(pool.map(_eval, inputs, chunksize= 1))
+    
+    def updateP(self, data):
+        data['func'] = 'updateP'
+        data['self'] = 'self'
+        inputs = dictSplit(data)
+        results = list(pool.map(_eval, inputs, chunksize= 1))
+        
+    def updateQ(self, data):
+        data['func'] = 'updateQ'
+        data['self'] = 'self'
+        inputs = dictSplit(data)
+        results = list(pool.map(_eval, inputs, chunksize= 1))
+
+            
+    def updatePi(self, data):
+        data['func'] = 'updatePi'
+        data['self'] = 'self'
+        inputs = dictSplit(data)
+        results = list(pool.map(_eval, inputs, chunksize= 1))
+
+        
+    def act(self, S, deterministic=False):
+        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'self':self})
+        results = list(pool.map(_eval, inputs, chunksize= 1))
+        results = listStack(results, 1)
+        return result

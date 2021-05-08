@@ -214,7 +214,7 @@ class RL(object):
     def roll(self):
         """
             updates the buffer using model rollouts, using the most recent samples in env_buffer
-            stops when the buffer is full or the env_buffer is exhausted
+            stops when the buffer is full (max_size + bacthsize -1) or the env_buffer is exhausted
         """
         env_buffer = self.env_buffer
         buffer = self.buffer

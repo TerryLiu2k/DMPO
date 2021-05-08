@@ -10,6 +10,41 @@ import pdb
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
+def dictSelect(dic, idx, dim=1):
+    result = {}
+    assert dim == 0 or dim ==1
+    for key in dic:
+        if isinstance(dic[key], torch.tensor):
+            if dim == 0:
+                result[key] = dic[key][idx]
+            else:
+                result[key] = dic[key][:,idx]
+        else:
+            result[key] = dic[key]
+            
+    return result
+
+def dictSplit(dic, dim=1):
+    """
+        scatters every tensor, others are broadcasted
+        adds the ranks
+    """
+    results = []
+    assert dim == 0 or dim ==1
+    sample = dic[dic.keys()[0]]
+    length = sample.shape[dim]
+    for i in range(length):
+        tmp = dictSelect(dic, i, dim)
+        tmp['rank'] = i
+        results.append(tmp)
+    return result
+
+def listStack(lst, dim=1):
+    """ takes a list of lists and stacks the inner lists """
+    result = [torch.stack(item, dim=dim) for item in lst]
+    return result
+    
+
 def combined_shape(length, shape=None):
     if shape is None:
         return (length,)
