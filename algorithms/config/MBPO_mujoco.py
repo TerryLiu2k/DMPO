@@ -11,7 +11,12 @@ from .CartPole import env_name, env_fn
 """
 algo_args = Config()
 
-algo_args.n_warmup=int(5e3)
+algo_args.checkpoint_dir="MBPO_CartPole"
+algo_args.resume_step=18352
+if getattr(algo_args, "checkpoint_dir", None) is None:
+    algo_args.n_warmup=int(5e3)
+else:
+    algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
 """
  rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
  bs256lr3e-4, it takes 2e4updates
@@ -27,6 +32,7 @@ algo_args.batch_size=256 # the same as MBPO
 algo_args.save_interval=600 # in seconds
 algo_args.log_interval=int(2e3/200)
 algo_args.n_step=int(1e8)
+
 
 p_args=Config()
 p_args.network = MLP

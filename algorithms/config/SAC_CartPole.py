@@ -17,7 +17,9 @@ algo_args = Config()
 algo_args.max_ep_len=2000
 algo_args.batch_size=256
 algo_args.n_warmup=int(2e5)
-algo_args.replay_size=int(1e6)
+algo_args.replay_size=int(1e5)
+# high replay size slows down training a lot
+# since new samples are less frequently sampled
 algo_args.test_interval = int(3e4)
 algo_args.seed=0
 algo_args.save_interval=500
@@ -44,7 +46,7 @@ agent_args.gamma=0.99
 agent_args.alpha=0.2 
 agent_args.target_sync_rate=5e-3
 # rainbow used 32K samples per q target sync
-# can be much higher, e.g. 5e-3 for bs=256 and 32 samples per update
+# high sync rate causes q becomes nan 
 
 args = Config()
 args.env_name="CartPole-v1"

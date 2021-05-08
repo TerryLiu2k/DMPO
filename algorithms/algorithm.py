@@ -84,6 +84,7 @@ def RL(logger, device,
        max_ep_len, test_interval, save_interval,
        seed, n_step, log_interval,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
+       checkpoint_dir=None, resume_step = 0,
        **kwargs):
     """ 
     a generic algorithm for model-free reinforcement learning
@@ -96,6 +97,9 @@ def RL(logger, device,
     p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
     agent = agent_args.agent(logger=logger, **agent_args._toDict())
     agent = agent.to(device)
+    if not checkpoint_dir is None:
+        agent.load_state_dict(torch.load(f"checkpoints/{checkpoint_dir}/{resume_step}.pt"))
+        logger.log(interaction=resume_step)
     last_save = 0
     
     pbar = iter(tqdm(range(int(1e6))))
@@ -109,14 +113,15 @@ def RL(logger, device,
 
     # warmups
     if hasattr(agent, "ps"):
-        q_update_start = n_warmup 
+        q_update_start = n_warmup + resume_step
         # p and q starts at the same time, since q update also need p
-        pi_update_start = n_warmup
-        act_start = 2*n_warmup
+        # warmup after loading a checkpoint, sicne I do not store replay buffer
+        pi_update_start = n_warmup + resume_step
+        act_start = 2*n_warmup + resume_step
     else:
-        q_update_start = 0
-        pi_update_start = 0
-        act_start = n_warmup
+        q_update_start = 0 + resume_step
+        pi_update_start = 0 + resume_step
+        act_start = n_warmup + resume_step
         
     # multiple gradient steps per sample if model based RL
     p_update_steps = 1
@@ -155,7 +160,7 @@ def RL(logger, device,
     o, ep_ret, ep_len = env.reset(), 0, 0
 
     # Main loop: collect experience in env and update/log each epoch
-    for t in range(n_step): 
+    for t in range(resume_step, n_step): 
         logger.log(interaction=None)
         if t >= act_start:
             agent.random = False
@@ -174,7 +179,7 @@ def RL(logger, device,
             o, ep_ret, ep_len = env.reset(), 0, 0
 
         # model rollout
-        if hasattr(agent, "ps") and t% p_args.refresh_interval == 0 and t >=n_warmup:
+        if hasattr(agent, "ps") and t% p_args.refresh_interval == 0 and t >=n_warmup+resume_step:
             env_buffer._rewind()
             buffer.clear()
             batch = env_buffer.iterBatch(batch_size)

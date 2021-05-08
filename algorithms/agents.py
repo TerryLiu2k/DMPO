@@ -217,9 +217,10 @@ class SAC(QLearning):
 
             # First run one gradient descent step for Q1 and Q2
             self.q_optimizer.zero_grad()
-            loss_q.backward()
-            torch.nn.utils.clip_grad_norm_(parameters=self.q_params, max_norm=5, norm_type=2)
-            self.q_optimizer.step()
+            if not torch.isnan(loss_q).any():
+                loss_q.backward()
+                torch.nn.utils.clip_grad_norm_(parameters=self.q_params, max_norm=5, norm_type=2)
+                self.q_optimizer.step()
 
             # Record things
             self.logger.log(q_update=None, loss_q=loss_q/2)

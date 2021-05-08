@@ -111,7 +111,7 @@ class Logger(object):
                     valid = False
                 if not valid:
                     print(f'{key} is nan!')
-                    pdb.set_trace()
+                   # pdb.set_trace()
                     continue
                 if rolling and key in self.buffer:
                     self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling

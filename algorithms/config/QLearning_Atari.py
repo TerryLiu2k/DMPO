@@ -20,6 +20,7 @@ algo_args.max_ep_len=2000
 algo_args.batch_size=256
 algo_args.n_warmup=int(2e5)
 algo_args.replay_size=int(1e6)
+# from rainbow
 algo_args.test_interval = int(3e4)
 algo_args.seed=0
 algo_args.save_interval=600
