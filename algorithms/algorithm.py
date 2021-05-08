@@ -228,6 +228,8 @@ class RL(object):
             for i in range(self.branch):
                 r, s1, d = self.agent.roll(s=s, a=a)
                 buffer.storeBatch(s, a, r, s1, d)
+                if len(buffer.data) >= buffer.max_size:
+                    break
             batch = env_buffer.iterBatch(batch_size)
             
     def step(self):
@@ -253,11 +255,11 @@ class RL(object):
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
         last_save = 0
-        pbar = iter(tqdm(range(int(1e6))))
+        pbar = iter(tqdm(range(int(1e8))))
         for t in range(self.start_step, self.n_step): 
+            next(pbar)
             self.t = t
             self.step()
-          #  pdb.set_trace()
             if hasattr(self.agent, "ps") and t >=self.n_warmup+self.start_step \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) is 0):
                 self.roll()
@@ -272,5 +274,4 @@ class RL(object):
                 self.test()
 
             if t % self.log_interval == 0:
-                next(pbar)
                 self.logger.flush()    

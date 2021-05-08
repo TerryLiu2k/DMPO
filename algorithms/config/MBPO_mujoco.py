@@ -35,7 +35,7 @@ p_args=Config()
 p_args.network = MLP
 p_args.activation=torch.nn.ReLU
 p_args.lr=3e-4
-p_args.sizes = [4, 16, 32, 3] 
+p_args.sizes = [4, 16, 32] 
 p_args.update_interval=1/10
 """
  bs=32 interval=4 from rainbow Q

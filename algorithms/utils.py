@@ -134,9 +134,12 @@ class Logger(object):
     def save(self, model):
         exists_or_mkdir(f"checkpoints/{self.args.name}")
         filename = f"{self.buffer[self.step_key]}.pt"
-        with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
-            torch.save(model.state_dict(), f)
-        print(f"checkpoint saved as {filename}")
+        if not self.mute:
+            with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
+                torch.save(model.state_dict(), f)
+            print(f"checkpoint saved as {filename}")
+        else:
+            print("not saving checkpoints because the logger is muted")
         
     def log(self, raw_data=None, rolling=None, **kwargs):
         if raw_data is None:

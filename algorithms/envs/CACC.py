@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 from .NCS.cacc_env import CACCEnv
+from gym.spaces import Box
 import configparser
 import os
 import pdb
@@ -15,6 +16,7 @@ class CACCWrapper(gym.Wrapper):
         env.init_data(True, False, "/tmp")
         self.k = k
         super().__init__(env)
+        self.observation_space = Box(-1e6, 1e6, [(self.k*2+1)*5])
     
     def ifCollide(self):
         ob = self.state
