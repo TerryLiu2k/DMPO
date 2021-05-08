@@ -160,7 +160,7 @@ class RL(object):
             self.branch = agent_args.p_args.branch
             self.refresh_interval = self.agent_args.p_args.refresh_interval
             self.p_update_interval = p_args.update_interval
-            if p_update_interval < 1:
+            if self.p_update_interval < 1:
                 self.p_update_steps = int(1/self.p_update_interval)
                 self.p_update_interval = 1
 
@@ -214,7 +214,6 @@ class RL(object):
             updates the buffer using model rollouts, using the most recent samples in env_buffer
             stops when the buffer is full (max_size + bacthsize -1) or the env_buffer is exhausted
         """
-        pdb.set_trace()
         env_buffer = self.env_buffer
         buffer = self.buffer
         batch_size = self.batch_size
@@ -223,9 +222,9 @@ class RL(object):
         batch = env_buffer.iterBatch(self.batch_size)
         while not batch is None and len(buffer.data) < buffer.max_size:
             s = batch['s']
-            a = self.agent.act(s, batched=True)
+            a = self.agent.act(s)
             for i in range(self.branch):
-                r, s1, d = self.agent.roll(s, a)
+                r, s1, d = self.agent.roll(s=s, a=a)
                 buffer.storeBatch(s, a, r, s1, d)
             batch = env_buffer.iterBatch(batch_size)
             

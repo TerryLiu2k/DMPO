@@ -286,6 +286,7 @@ class MultiAgent(nn.Module):
     def roll(self, **data):
         data['func'] = 'roll'
         data['agent'] = self.agents
+        inputs = dictSplit(data)
         results = parallelEval(self.pool, inputs)
         return results
     
