@@ -38,7 +38,6 @@ class ReplayBuffer:
         for i in range(done.shape[0]):
             self._store(obs[i], act[i], rew[i], next_obs[i], done[i])
 
-        
     def sampleBatch(self, batch_size):
         idxs = np.random.randint(0, len(self.data), size=batch_size)
         raw_batch = [self.data[i] for i in idxs]
@@ -183,8 +182,7 @@ class RL(object):
         while not(d.all() or (ep_len == self.max_ep_len)):
             # Take deterministic actions at test time 
             state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
-            state = state.unsqueeze(0)
-            action = self.agent.act(state, deterministic=True)
+            action = self.agent.act(state.unsqueeze(0), deterministic=True)
             _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
             ep_ret += r
             ep_len += 1
@@ -202,7 +200,6 @@ class RL(object):
                 agent.updateP(**batch)
 
         if hasattr(agent, "q1") and t>self.q_update_start and t % self.q_update_interval == 0:
-            pdb.set_trace()
             for i in range(self.q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(**batch)
@@ -239,8 +236,7 @@ class RL(object):
         if self.t >= self.act_start:
             self.agent.random = False
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
-        state = state.unsqueeze(0)
-        a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device))    
+        a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device).unsqueeze(0))    
         a = a.squeeze().detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)
@@ -260,7 +256,7 @@ class RL(object):
             print(t)
             self.t = t
             self.step()
-            
+          #  pdb.set_trace()
             if hasattr(self.agent, "ps") and t >=self.n_warmup+self.start_step \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) is 0):
                 self.roll()

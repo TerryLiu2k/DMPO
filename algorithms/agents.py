@@ -95,14 +95,14 @@ class QLearning(nn.Module):
                     p_targ.data.add_(self.target_sync_rate * p.data)
                 
         
-    def act(self, o, deterministic=False):
+    def act(self, s, deterministic=False):
         """
         o and a of shape [b, ..],
         not differentiable
         """
         with torch.no_grad():
-            q1 = self.q1(o)
-            q2 = self.q2(o)
+            q1 = self.q1(s)
+            q2 = self.q2(s)
             q = torch.min(q1, q2)
             a = q.argmax(dim=1)
             if not deterministic and random.random()<self.eps:
@@ -126,7 +126,7 @@ class SAC(QLearning):
             self.pi = CategoricalActor(**pi_args._toDict())
         self.pi_optimizer = Adam(self.pi.parameters(), lr=pi_args.lr)
 
-    def act(self, o, deterministic=False):
+    def act(self, s, deterministic=False):
         """
             o of shape [b, ..]
             not differentiable
@@ -134,32 +134,31 @@ class SAC(QLearning):
             not used when updating q
         """
         if self.random and not deterministic:
-            probs = torch.ones(o.shape[0], self.action_space.n)/self.action_space.n
-            return Categorical(probs).sample().to(o.device)
+            probs = torch.ones(s.shape[0], self.action_space.n)/self.action_space.n
+            return Categorical(probs).sample().to(s.device)
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
-                a = self.pi(o)
+                a = self.pi(s)
                 if (torch.isnan(a).any()):
                     print('action is nan!')
                     probs = torch.ones(1, self.action_space.n)/self.action_space.n
-                    return Categorical(probs).sample().to(o.device)
+                    return Categorical(probs).sample().to(s.device)
                 elif deterministic:
                     a = a.argmax(dim=1)
                 else:
                     a = Categorical(a).sample()
             else:
-                a = self.pi(o, deterministic)
+                a = self.pi(s, deterministic)
                 if isinstance(a, tuple):
                     a = a[0]
             return a.detach()
     
-    def updatePi(self, o, **kwargs):
-        o = data['s']
+    def updatePi(self, s, a, r, s1, d):
         if isinstance(self.action_space, Discrete):
-            pi = self.pi(o) + 1e-5 # avoid nan
+            pi = self.pi(s) + 1e-5 # avoid nan
             logp = torch.log(pi/pi.sum(dim=1, keepdim=True))
-            q1 = self.q1(o)
-            q2 = self.q2(o)
+            q1 = self.q1(s)
+            q2 = self.q2(s)
             q = torch.min(q1, q2)
             q = q - self.alpha * logp
             optimum = q.max(dim=1, keepdim=True)[0].detach()
@@ -168,9 +167,9 @@ class SAC(QLearning):
             entropy = -(pi*logp).sum(dim=1).mean(dim=0)
             self.logger.log(entropy=entropy, pi_regret=loss)
         else:
-            action, logp = self.pi(o)
-            q1 = self.q1(o, action)
-            q2 = self.q2(o, action)
+            action, logp = self.pi(s)
+            q1 = self.q1(s, action)
+            q2 = self.q2(s, action)
             q = torch.min(q1, q2)
             q = q - self.alpha * logp
             loss = (-q).mean()
@@ -247,7 +246,6 @@ class MBPO(SAC):
         
     def updateP(self, s, a, r, s1, d):
         loss = 0
-
         for i in range(self.n_p):
             loss = loss + self.ps[i](s, a, r, s1, d)
         self.p_optimizer.zero_grad()
@@ -280,7 +278,7 @@ class MultiAgent(nn.Module):
         super().__init__()
         agent_fn = agent_args['agent']
         self.agents = nn.ModuleList([agent_fn(**agent_args) for i in range(n_agent)])
-        for attr in ['ps', 'q', 'pi']:
+        for attr in ['ps', 'q1', 'pi']:
             if hasattr(self.agents[0], attr):
                 setattr(self, attr, True)
         self.pool = Pool(n_agent)
@@ -310,7 +308,7 @@ class MultiAgent(nn.Module):
         results = parallelEval(self.pool, inputs)
 
     def act(self, S, deterministic=False):
-        inputs = dictSplit({'o': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
+        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
         results = parallelEval(self.pool, inputs)
         results, = listStack(results)
         return results
