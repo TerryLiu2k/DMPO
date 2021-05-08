@@ -12,7 +12,7 @@ from .CartPole_MA import env_name, env_fn
 algo_args = Config()
 
 if getattr(algo_args, "checkpoint_dir", None) is None:
-    algo_args.n_warmup=0#int(5e3)
+    algo_args.n_warmup=int(5e3)
 else:
     algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
 """

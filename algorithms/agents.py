@@ -118,7 +118,8 @@ class SAC(QLearning):
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
         # eps = 0
         self.alpha = alpha
-        self.random = True # unset this after warmup
+        self.eps = 1 # linearly decrease to 0,
+        #switching from 1 to 0 in a sudden causes nan on some tasks
         self.action_space = env_fn().action_space
         if isinstance(self.action_space, Box): #continous
             self.pi = SquashedGaussianActor(**pi_args._toDict())
@@ -133,20 +134,22 @@ class SAC(QLearning):
             called during env interaction and model rollout
             not used when updating q
         """
-        if self.random and not deterministic:
-            probs = torch.ones(s.shape[0], self.action_space.n)/self.action_space.n
-            return Categorical(probs).sample().to(s.device)
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
                 a = self.pi(s)
-                if (torch.isnan(a).any()):
+                # [b, n_agent, n_action] or [b, n_action]
+                greedy_a = a.argmax(dim=-1)
+                stochastic_a = Categorical(a).sample()
+                probs = torch.ones(*a.shape)/self.action_space.n
+                random_a = Categorical(probs).sample().to(s.device)
+                if  torch.isnan(a).any():
                     print('action is nan!')
-                    probs = torch.ones(1, self.action_space.n)/self.action_space.n
-                    return Categorical(probs).sample().to(s.device)
+                    return random_a
                 elif deterministic:
-                    a = a.argmax(dim=1)
-                else:
-                    a = Categorical(a).sample()
+                    return greedy_a
+                elif np.random.rand()<self.eps:
+                    return random_a
+                return stochastic_a
             else:
                 a = self.pi(s, deterministic)
                 if isinstance(a, tuple):
@@ -260,7 +263,7 @@ class MBPO(SAC):
         
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
-                a = self.act(s, deterministic=False, batched=True)
+                a = self.act(s, deterministic=False)
                 r, s1, d = p(s, a)
             else:
                 return None
@@ -288,7 +291,7 @@ class MultiAgent(nn.Module):
         data['agent'] = self.agents
         inputs = dictSplit(data)
         results = parallelEval(self.pool, inputs)
-        return results
+        return listStack(results)
     
     def updateP(self, **data):
         data['func'] = 'updateP'
@@ -311,5 +314,4 @@ class MultiAgent(nn.Module):
     def act(self, S, deterministic=False):
         inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
         results = parallelEval(self.pool, inputs)
-        results, = listStack(results)
-        return results
+        return torch.stack(results, dim=1)

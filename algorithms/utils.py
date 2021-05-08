@@ -55,14 +55,13 @@ def dictSplit(dic, dim=1):
         results.append(tmp)
     return results
 
-def listStack(lst, dim=0):
+def listStack(lst, dim=1):
     """ 
     takes a list (agent parallel) of lists (return values) and stacks the outer lists
-    .stack inserts a new dim *after* dim
     """
     results = []
-    for i in range(len(lst[0])):
-        results += [torch.stack([item[i] for item in lst], dim=dim)]
+    for i in range(len(lst[0])):# torch.stack squeezes..
+        results.append(torch.stack([agent_return[i] for agent_return in lst], dim=dim))
     return results
 
 def combined_shape(length, shape=None):

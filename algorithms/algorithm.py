@@ -36,7 +36,7 @@ class ReplayBuffer:
             does not convert to tensor, in order to utilze gym FrameStack LazyFrame
         """
         for i in range(done.shape[0]):
-            self._store(obs[i], act[i], rew[i], next_obs[i], done[i])
+            self.store(obs[i], act[i], rew[i], next_obs[i], done[i])
 
     def sampleBatch(self, batch_size):
         idxs = np.random.randint(0, len(self.data), size=batch_size)
@@ -182,7 +182,8 @@ class RL(object):
         while not(d.all() or (ep_len == self.max_ep_len)):
             # Take deterministic actions at test time 
             state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
-            action = self.agent.act(state.unsqueeze(0), deterministic=True)
+            action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
+            # [b=1, (n_agent), ...]
             _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
             ep_ret += r
             ep_len += 1
@@ -232,11 +233,11 @@ class RL(object):
         env = self.env
         state = env.state
         self.logger.log(interaction=None)
-        if self.t >= self.act_start:
-            self.agent.random = False
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
+        eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
+        self.agent.eps = np.clip(eps, 0, 1)
         a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device).unsqueeze(0))    
-        a = a.squeeze().detach().cpu().numpy()
+        a = a.squeeze(0).detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)
         self.episode_reward += r
