@@ -1,4 +1,9 @@
+import gym
 from gym.wrappers import FrameStack
+import numpy as np
+import torch
+from ..agents import QLearning
+from matplotlib import pyplot as plt
 
 class BreakoutWrapper(gym.ObservationWrapper):
     """ 
@@ -38,8 +43,6 @@ class BreakoutWrapper(gym.ObservationWrapper):
         observation = np.array(self.pooling(tmp).squeeze(0))
         return observation
 
-from agents import QLearning
-from matplotlib import pyplot as plt
 env_name = 'Breakout-v0'
 env_fn = lambda: FrameStack(BreakoutWrapper(gym.make(env_name)), 4)
 

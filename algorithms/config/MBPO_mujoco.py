@@ -12,7 +12,7 @@ from .CartPole import env_name, env_fn
 algo_args = Config()
 
 algo_args.checkpoint_dir="MBPO_CartPole"
-algo_args.resume_step=18352
+algo_args.resume_step=16415
 if getattr(algo_args, "checkpoint_dir", None) is None:
     algo_args.n_warmup=int(5e3)
 else:

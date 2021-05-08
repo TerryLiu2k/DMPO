@@ -179,7 +179,8 @@ def RL(logger, device,
             o, ep_ret, ep_len = env.reset(), 0, 0
 
         # model rollout
-        if hasattr(agent, "ps") and t% p_args.refresh_interval == 0 and t >=n_warmup+resume_step:
+        if hasattr(agent, "ps") and t >=n_warmup+resume_step\
+        and (t% p_args.refresh_interval == 0 or len(buffer.data) is 0):
             env_buffer._rewind()
             buffer.clear()
             batch = env_buffer.iterBatch(batch_size)
@@ -201,7 +202,7 @@ def RL(logger, device,
             for i in range(q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(data=batch)
-            
+
         if hasattr(agent, "pi") and t>pi_update_start and t % pi_update_interval == 0:
             for i in range(pi_update_steps):
                 batch = buffer.sampleBatch(batch_size)

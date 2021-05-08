@@ -24,7 +24,7 @@ algo_args.replay_size=int(1e6)
 algo_args.test_interval = int(3e4)
 algo_args.seed=0
 algo_args.save_interval=600
-algo_args.log_interval=int(2e3)
+algo_args.log_interval=int(2e2)
 algo_args.n_step=int(1e8)
 
 q_args=Config()
@@ -57,3 +57,5 @@ agent_args.q_args = q_args
 agent_args.pi_args = None
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
+
+RL(logger = Logger(args), device=device, **algo_args._toDict())
