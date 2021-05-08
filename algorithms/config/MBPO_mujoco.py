@@ -11,8 +11,6 @@ from .CartPole import env_name, env_fn
 """
 algo_args = Config()
 
-algo_args.checkpoint_dir="MBPO_CartPole"
-algo_args.resume_step=16415
 if getattr(algo_args, "checkpoint_dir", None) is None:
     algo_args.n_warmup=int(5e3)
 else:
@@ -26,13 +24,12 @@ else:
 """
 algo_args.replay_size=int(1e6)
 algo_args.max_ep_len=500
-algo_args.test_interval = int(1e4)
+algo_args.test_interval = int(1e3)
 algo_args.seed=0
 algo_args.batch_size=256 # the same as MBPO
 algo_args.save_interval=600 # in seconds
 algo_args.log_interval=int(2e3/200)
 algo_args.n_step=int(1e8)
-
 
 p_args=Config()
 p_args.network = MLP
@@ -94,4 +91,4 @@ print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args
 # each generated data will be used so many times
 
 
-RL(logger = Logger(args), device=device, **algo_args._toDict())
+RL(logger = Logger(args), device=device, **algo_args._toDict()).run()

@@ -58,4 +58,4 @@ agent_args.pi_args = None
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
 
-RL(logger = Logger(args), device=device, **algo_args._toDict())
+RL(logger = Logger(args), device=device, **algo_args._toDict()).run()

@@ -82,7 +82,7 @@ class QLearning(nn.Module):
         self.q_optimizer.step()
 
         # Record things
-        self.logger.log(q_update=None, loss_q=loss_q/2)
+        self.logger.log(q_update=None, loss_q=loss_q/2, rolling=100)
         
         # update the target nets
         with torch.no_grad():
@@ -141,7 +141,8 @@ class SAC(QLearning):
                 a = self.pi(o)
                 if (torch.isnan(a).any()):
                     print('action is nan!')
-                    pdb.set_trace()
+                    probs = torch.ones(1, self.action_space.n)/self.action_space.n
+                    return Categorical(probs).sample().to(o.device)
                 elif deterministic:
                     a = a.argmax(dim=1)
                 else:
@@ -157,8 +158,8 @@ class SAC(QLearning):
     def updatePi(self, data):
         o = data['s']
         if isinstance(self.action_space, Discrete):
-            pi = self.pi(o)
-            logp = torch.log(pi)
+            pi = self.pi(o) + 1e-5 # avoid nan
+            logp = torch.log(pi/pi.sum(dim=1, keepdim=True))
             q1 = self.q1(o)
             q2 = self.q2(o)
             q = torch.min(q1, q2)
@@ -178,9 +179,10 @@ class SAC(QLearning):
             self.logger.log(logp=logp, pi_reward=q)
             
         self.pi_optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(parameters=self.pi.parameters(), max_norm=5, norm_type=2)
-        self.pi_optimizer.step()
+        if not torch.isnan(loss).any():
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(parameters=self.pi.parameters(), max_norm=5, norm_type=2)
+            self.pi_optimizer.step()
 
     
     def updateQ(self, data):
