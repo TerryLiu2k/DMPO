@@ -6,12 +6,14 @@ import os
 import pdb
 
 class CACCWrapper(gym.Wrapper):
-    def __init__(self, config_path):
+    def __init__(self, config_path, k):
+        # k-hop
         config_path = os.path.join(os.path.dirname(__file__), config_path)
         config = configparser.ConfigParser()
         config.read(config_path)
         env = CACCEnv(config['ENV_CONFIG'])
         env.init_data(True, False, "/tmp")
+        self.k = k
         super().__init__(env)
     
     def ifCollide(self):
@@ -26,9 +28,20 @@ class CACCWrapper(gym.Wrapper):
             return True
         return False
     
+    def _k_hop(self, state):
+        result = np.zeros((8, 5*(1+2*self.k)), dtype = np.float32)
+        for i in range(8):
+            for j in range(i-self.k, i+self.k+1):
+                if j<0 or j>=8:
+                    continue
+                start = j-(i-self.k)
+                result[i, start*5: start*5+5] = state[j]
+        return result
+    
     def reset(self):
         state = self.env.reset()
         state = np.array(state, dtype=np.float32)
+        state = self._k_hop(state)
         self.state = state
         return state
     
@@ -37,13 +50,14 @@ class CACCWrapper(gym.Wrapper):
         state = np.array(state, dtype=np.float32)
         reward = np.array([reward]*8, dtype=np.float32)
         done = np.array([done]*8, dtype=np.float32)
+        state = self._k_hop(state)
         self.state=state
         return state, reward/1000, done, None
         
 
 env_name = 'CACC_catchup'
-env_fn = lambda: CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini')
+env_fn = lambda k: (lambda: CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', k))
 
-env = env_fn()
+env = env_fn(1)()
 result  = np.array(env.reset())
 print(result, result.dtype)
