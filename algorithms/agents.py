@@ -142,6 +142,7 @@ class SAC(QLearning):
                 stochastic_a = Categorical(a).sample()
                 probs = torch.ones(*a.shape)/self.action_space.n
                 random_a = Categorical(probs).sample().to(s.device)
+                self.logger.log(eps=self.eps)
                 if  torch.isnan(a).any():
                     print('action is nan!')
                     return random_a

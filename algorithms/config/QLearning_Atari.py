@@ -4,7 +4,7 @@ from ..utils import Config, Logger
 from ..models import CNN
 from ..agents import QLearning
 from ..algorithm import RL
-from .Breakout import env_name, env_fn
+from ..envs.Breakout import env_name, env_fn
 
 """
     notice that 50M samples is typical for DQNs with visual input (refer to rainbow)

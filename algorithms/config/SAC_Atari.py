@@ -4,7 +4,7 @@ from ..utils import Config, Logger
 from ..models import CNN
 from ..agents import SAC
 from ..algorithm import RL
-from .Breakout import env_name, env_fn
+from ..envs.Breakout import env_name, env_fn
 
 """
     Compared with QLearning, alpha instead of eps

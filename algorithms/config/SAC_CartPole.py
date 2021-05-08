@@ -4,7 +4,7 @@ from ..utils import Config, Logger
 from ..models import MLP
 from ..agents import SAC
 from ..algorithm import RL
-from .CartPole import env_name, env_fn
+from ..envs.CartPole import env_name, env_fn
 
 """
     Compared with QLearning, alpha instead of eps

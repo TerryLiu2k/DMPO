@@ -185,6 +185,7 @@ class RL(object):
             action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
             # [b=1, (n_agent), ...]
             _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
+            d=np.array(d)
             ep_ret += r
             ep_len += 1
         self.logger.log(TestEpRet=ep_ret, TestEpLen=ep_len, test_episode=None)
@@ -240,20 +241,20 @@ class RL(object):
         a = a.squeeze(0).detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)
+        d = np.array(d)
         self.episode_reward += r
         self.episode_len += 1
         self.env_buffer.store(state, a, r, s1, d)
         if d.all() or (self.episode_len == self.max_ep_len):
             """ for compatibility, allow different agents to have different done"""
             self.logger.log(episode_reward=self.episode_reward, episode_len=self.episode_len, episode=None)
-            o, self.episode_reward, self.episode_len = self.env.reset(), 0, 0
+            _, self.episode_reward, self.episode_len = self.env.reset(), 0, 0
         
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
         last_save = 0
         pbar = iter(tqdm(range(int(1e6))))
         for t in range(self.start_step, self.n_step): 
-            print(t)
             self.t = t
             self.step()
           #  pdb.set_trace()

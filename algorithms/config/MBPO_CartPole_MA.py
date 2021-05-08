@@ -4,7 +4,7 @@ from ..utils import Config, Logger
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
-from .CartPole_MA import env_name, env_fn
+from ..envs.CartPole_MA import env_name, env_fn
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
