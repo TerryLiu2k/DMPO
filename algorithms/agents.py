@@ -294,29 +294,28 @@ class MultiAgent(nn.Module):
     def roll(self, S, A):
         inputs = dictSplit({'s': S, 'a': A, 'func': 'roll', 'self':self})
         results = list(pool.map(_eval, inputs, chunksize= 1))
+        return results
     
     def updateP(self, data):
         data['func'] = 'updateP'
-        data['self'] = 'self'
+        data['self'] = self
         inputs = dictSplit(data)
         results = list(pool.map(_eval, inputs, chunksize= 1))
         
     def updateQ(self, data):
         data['func'] = 'updateQ'
-        data['self'] = 'self'
+        data['self'] = self
         inputs = dictSplit(data)
         results = list(pool.map(_eval, inputs, chunksize= 1))
 
-            
     def updatePi(self, data):
         data['func'] = 'updatePi'
-        data['self'] = 'self'
+        data['self'] = self
         inputs = dictSplit(data)
         results = list(pool.map(_eval, inputs, chunksize= 1))
 
-        
     def act(self, S, deterministic=False):
         inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'self':self})
         results = list(pool.map(_eval, inputs, chunksize= 1))
         results = listStack(results, 1)
-        return result
+        return results
