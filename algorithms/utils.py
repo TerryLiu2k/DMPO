@@ -14,11 +14,13 @@ def dictSelect(dic, idx, dim=1):
     result = {}
     assert dim == 0 or dim ==1
     for key in dic:
-        if isinstance(dic[key], torch.tensor):
+        if isinstance(dic[key], torch.Tensor):
             if dim == 0:
                 result[key] = dic[key][idx]
             else:
                 result[key] = dic[key][:,idx]
+        elif isinstance(dic[key], torch.nn.ModuleList):
+            result[key] = dic[key][idx]
         else:
             result[key] = dic[key]
             
@@ -26,18 +28,17 @@ def dictSelect(dic, idx, dim=1):
 
 def dictSplit(dic, dim=1):
     """
-        scatters every tensor, others are broadcasted
-        adds the ranks
+        scatters every tensor and modulelist
+        others are broadcasted
     """
     results = []
     assert dim == 0 or dim ==1
-    sample = dic[dic.keys()[0]]
+    sample = dic[list(iter(dic.keys()))[0]]
     length = sample.shape[dim]
     for i in range(length):
         tmp = dictSelect(dic, i, dim)
-        tmp['rank'] = i
         results.append(tmp)
-    return result
+    return results
 
 def listStack(lst, dim=1):
     """ takes a list of lists and stacks the inner lists """

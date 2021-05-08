@@ -1,6 +1,6 @@
 from copy import deepcopy
 from concurrent.futures import ProcessPoolExecutor
-from utils import dictSelect, dictSplit, listStack
+from .utils import dictSelect, dictSplit, listStack
 from .models import *
 """
     Not implemented yet:
@@ -270,52 +270,51 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
+def parallelEval(args):
+    """ invokes the agents in parallel"""
+    self = args.pop('self')
+    rank = args.pop('rank')
+    func = getattr(self.agents[rank], args.pop('func'))
+    result = func(**args)
+    return result
+    
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, **agent_args):
         """
+            A wrapper for Multi Agent RL
             Assumes s, a, r, d of shape [b, n_agent, ...]
             (since in general, d may be different for each agent)
         """
         super().__init__()
-        self.agent_fn = agent_args.agent
-        self.agents = nn.ModuleList(agent(**agent_args._toDict()))
+        agent_fn = agent_args['agent']
+        self.agents = nn.ModuleList([agent_fn(**agent_args) for i in range(n_agent)])
         self.pool = ProcessPoolExecutor(n_agent)
-       
-        result = list(pool.map(reaction, arg_list, chunksize= 1))
-        
-    def _eval(args):
-        """ invokes the agents in parallel"""
-        self = args.pop('self')
-        rank = args.pop('rank')
-        func = getattr(self.agents[rank], args.pop('func'))
-        result = func(**args)
-        return result
         
     def roll(self, S, A):
-        inputs = dictSplit({'s': S, 'a': A, 'func': 'roll', 'self':self})
-        results = list(pool.map(_eval, inputs, chunksize= 1))
+        inputs = dictSplit({'s': S, 'a': A, 'func': 'roll', 'agent': self.agents})
+        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
         return results
     
     def updateP(self, data):
         data['func'] = 'updateP'
-        data['self'] = self
+        data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(pool.map(_eval, inputs, chunksize= 1))
+        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
         
     def updateQ(self, data):
         data['func'] = 'updateQ'
-        data['self'] = self
+        data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(pool.map(_eval, inputs, chunksize= 1))
+        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
 
     def updatePi(self, data):
         data['func'] = 'updatePi'
-        data['self'] = self
+        data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(pool.map(_eval, inputs, chunksize= 1))
+        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
 
     def act(self, S, deterministic=False):
-        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'self':self})
-        results = list(pool.map(_eval, inputs, chunksize= 1))
+        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
+        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
         results = listStack(results, 1)
         return results

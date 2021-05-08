@@ -121,12 +121,10 @@ class RL(object):
         self.start_step = start_step
         self.n_step = n_step
         self.max_ep_len = max_ep_len
-        self.branch = agent_args.p_args.branch
 
         self.logger = logger
         self.device=device
         
-        self.refresh_interval = self.agent_args.p_args.refresh_interval
         self.save_interval = save_interval
         self.log_interval = log_interval
         self.test_interval = test_interval
@@ -141,7 +139,7 @@ class RL(object):
         if hasattr(agent, "ps"): # use the model buffer if there is a model
             self.buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
         else:
-            self.buffer = env_buffer  
+            self.buffer = self.env_buffer  
 
         # warmups
         self.n_warmup = n_warmup
@@ -163,6 +161,8 @@ class RL(object):
         self.q_update_steps = 1
         self.pi_update_steps = 1
         if hasattr(agent, "ps"):
+            self.branch = agent_args.p_args.branch
+            self.refresh_interval = self.agent_args.p_args.refresh_interval
             p_update_interval = p_args.update_interval
             if p_update_interval < 1:
                 self.p_update_steps = int(1/p_update_interval)
@@ -181,11 +181,13 @@ class RL(object):
 
     def test(self):
         test_env = self.test_env
-        o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
+        state, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
         while not(d or (ep_len == self.max_ep_len)):
             # Take deterministic actions at test time 
-            action = self.agent.act(torch.as_tensor(o, dtype=torch.float).to(self.device), deterministic=True)
-            o, r, d, _ = test_env.step(action.cpu().numpy())
+            state = torch.as_tensor(state, dtype=torch.float).to(self.device)
+            state = state.unsqueeze(0)
+            action = self.agent.act(state, deterministic=True)
+            o, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
             ep_ret += r
             ep_len += 1
         self.logger.log(TestEpRet=ep_ret, TestEpLen=ep_len, test_episode=None)
@@ -236,8 +238,10 @@ class RL(object):
         self.logger.log(interaction=None)
         if self.t >= self.act_start:
             self.agent.random = False
+        state = torch.as_tensor(state, dtype=torch.float).to(self.device)
+        state = state.unsqueeze(0)
         a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device))    
-        a = a.detach().cpu().numpy().item()
+        a = a.squeeze().detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)
         self.episode_reward += r

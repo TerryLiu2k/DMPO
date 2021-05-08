@@ -14,8 +14,8 @@ algo_args = Config()
 
 algo_args.max_ep_len=2000
 algo_args.batch_size=256
-algo_args.n_warmup=0
-algo_args.replay_size=int(1e4)
+algo_args.n_warmup=2e5
+algo_args.replay_size=int(1e5)
 # high replay size slows down training a lot
 # since new samples are less frequently sampled
 algo_args.test_interval = int(3e4)
@@ -44,7 +44,7 @@ def agent_fn(**agent_args):
     return MultiAgent(**agent_args)
 agent_args.agent=agent_fn
 agent_args.gamma=0.99
-agent-args.n_agent=2
+agent_args.n_agent=2
 agent_args.alpha=0.2 
 agent_args.target_sync_rate=5e-3
 # rainbow used 32K samples per q target sync
@@ -65,4 +65,4 @@ agent_args.pi_args = pi_args
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
 
-RL(logger = Logger(args), device=device, **algo_args._toDict()).run()
+RL(logger = Logger(args, mute=True), device=device, **algo_args._toDict()).run()
