@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from ..utils import Config, Logger
 from ..models import MLP
-from ..agents import SAC
+from ..agents import SAC, MultiAgent
 from ..algorithm import RL
 from ..envs.CACC import env_name, env_fn
 
@@ -13,10 +13,16 @@ from ..envs.CACC import env_name, env_fn
 
 
 algo_args = Config()
+debug = False
+neighbor_radius=1
 
 algo_args.max_ep_len=600
+if debug:
+    algo_args.max_ep_len=2
 algo_args.batch_size=256
 algo_args.n_warmup=int(5e3)
+if debug:
+    algo_args.n_warmup=1
 algo_args.replay_size=int(1e5)
 # high replay size slows down training a lot
 # since new samples are less frequently sampled
@@ -25,8 +31,6 @@ algo_args.seed=0
 algo_args.save_interval=1800
 algo_args.log_interval=int(10)
 algo_args.n_step=int(1e8)
-
-neighbor_radius=1
 
 q_args=Config()
 q_args.network = MLP
@@ -43,7 +47,11 @@ pi_args.lr=3e-4
 pi_args.sizes = [5*(1+2*neighbor_radius), 32, 64, 4] 
 
 agent_args=Config()
-agent_args.agent=SAC
+def agent_fn(**agent_args):
+    agent_args['agent']=SAC
+    return MultiAgent(**agent_args)
+agent_args.agent=agent_fn
+agent_args.n_agent=8
 agent_args.gamma=0.99
 agent_args.alpha=0.2 *0.2 # reward rescaled
 agent_args.target_sync_rate=5e-3
@@ -66,4 +74,4 @@ agent_args.pi_args = pi_args
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
 
-RL(logger = Logger(args), device=device, **algo_args._toDict()).run()
+RL(logger = Logger(args, mute=debug), device=device, **algo_args._toDict()).run()
