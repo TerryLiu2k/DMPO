@@ -17,7 +17,7 @@ class ReplayBuffer:
         self.max_size = max_size
         self.data = []
         self.ptr = 0
-        self.read_ptr = 0
+        self.unread = 0
         self.device = device
         self.action_dtype = action_dtype
 
@@ -57,13 +57,16 @@ class ReplayBuffer:
         return batch
     
     def iterBatch(self, batch_size):
-        if self.read_ptr >= len(self.data):
-            self._rewind()
+        """ reads backwards from ptr to use the most recent samples """
+        if self.unread == 0:
             return None
+        batch_size =  min(batch_size, self.unread)
+        read_ptr = self.ptr - (len(self.data) - self.unread)
+        idxs = list(range(read_ptr-batch_size, read_ptr))
+        idxs = [(i + batch_size*len(self.data))%len(self.data) for i in idxs] 
+        # make them in the correct range
+        self.unread -= batch_size
         
-        end =  min(self.read_ptr+batch_size, len(self.data))
-        idxs = list(range(self.read_ptr, end))
-        self.read_ptr = end
         raw_batch = [self.data[i] for i in idxs]
         batch = {}
         for key in raw_batch[0]:
@@ -78,10 +81,10 @@ class ReplayBuffer:
     def clear(self):
         self.data = []
         self.ptr = 0
-        self.read_ptr = 0
+        self._rewind()
         
     def _rewind(self):
-        self.read_ptr = 0
+        self.unread = len(self.data)
 
 
 class RL(object):
