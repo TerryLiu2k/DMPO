@@ -21,25 +21,22 @@ class ReplayBuffer:
         self.device = device
         self.action_dtype = action_dtype
 
-    def _store(self, obs, act, rew, next_obs, done):
+    def store(self, obs, act, rew, next_obs, done):
         """ not batched """
         if len(self.data) == self.ptr:
             self.data.append({})
-        self.data[self.ptr] = {'s':obs, 'a':act, 'r':rew, 's1':next_obs, 'd':float(done)}
+        self.data[self.ptr] = {'s':obs, 'a':act, 'r':rew, 's1':next_obs, 'd':done}
         # lazy frames here
         # cuts Q bootstrap if done (next_obs is arbitrary)
         self.ptr = (self.ptr+1) % self.max_size
         
-    def store(self, obs, act, rew, next_obs, done):
+    def storeBatch(self, obs, act, rew, next_obs, done):
         """ 
-            can be batched,
+            explicitly tell if batched since the first dim may be batch or n_agent
             does not convert to tensor, in order to utilze gym FrameStack LazyFrame
         """
-        if not isinstance(done, bool): # batched
-            for i in range(done.shape[0]):
-                self._store(obs[i], act[i], rew[i], next_obs[i], done[i])
-        else:
-            self._store(obs, act, rew, next_obs, done)
+        for i in range(done.shape[0]):
+            self._store(obs[i], act[i], rew[i], next_obs[i], done[i])
 
         
     def sampleBatch(self, batch_size):
@@ -154,7 +151,7 @@ class RL(object):
             self.pi_update_start = 0 + start_step
             self.act_start = n_warmup + start_step
 
-        # update steps
+        # update frequency
         p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
         # multiple gradient steps per sample if model based RL
         self.p_update_steps = 1
@@ -163,31 +160,32 @@ class RL(object):
         if hasattr(agent, "ps"):
             self.branch = agent_args.p_args.branch
             self.refresh_interval = self.agent_args.p_args.refresh_interval
-            p_update_interval = p_args.update_interval
+            self.p_update_interval = p_args.update_interval
             if p_update_interval < 1:
-                self.p_update_steps = int(1/p_update_interval)
+                self.p_update_steps = int(1/self.p_update_interval)
                 self.p_update_interval = 1
 
         if hasattr(agent, "pi"):
-            pi_update_interval = pi_args.update_interval
-            if pi_update_interval < 1:
-                self.pi_update_steps = int(1/pi_update_interval)
+            self.pi_update_interval = pi_args.update_interval
+            if self.pi_update_interval < 1:
+                self.pi_update_steps = int(1/self.pi_update_interval)
                 self.pi_update_interval = 1
 
-        q_update_interval = q_args.update_interval
-        if q_update_interval < 1:
-            self.q_update_steps = int(1/q_update_interval)
+        self.q_update_interval = q_args.update_interval
+        if self.q_update_interval < 1:
+            self.q_update_steps = int(1/self.q_update_interval)
             self.q_update_interval = 1
 
     def test(self):
         test_env = self.test_env
-        state, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-        while not(d or (ep_len == self.max_ep_len)):
+        test_env.reset()
+        d, ep_ret, ep_len = np.array([False]), 0, 0
+        while not(d.all() or (ep_len == self.max_ep_len)):
             # Take deterministic actions at test time 
-            state = torch.as_tensor(state, dtype=torch.float).to(self.device)
+            state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
             state = state.unsqueeze(0)
             action = self.agent.act(state, deterministic=True)
-            o, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
+            _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
             ep_ret += r
             ep_len += 1
         self.logger.log(TestEpRet=ep_ret, TestEpLen=ep_len, test_episode=None)
@@ -201,23 +199,25 @@ class RL(object):
         if hasattr(agent, "ps") and (t % self.p_update_interval) == 0 and t>batch_size:
             for i in range(self.p_update_steps):
                 batch = env_buffer.sampleBatch(batch_size)
-                agent.updateP(data=batch)
+                agent.updateP(**batch)
 
         if hasattr(agent, "q1") and t>self.q_update_start and t % self.q_update_interval == 0:
+            pdb.set_trace()
             for i in range(self.q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
-                agent.updateQ(data=batch)
+                agent.updateQ(**batch)
 
         if hasattr(agent, "pi") and t>self.pi_update_start and t % self.pi_update_interval == 0:
             for i in range(self.pi_update_steps):
                 batch = buffer.sampleBatch(batch_size)
-                agent.updatePi(data=batch)
+                agent.updatePi(**batch)
                 
     def roll(self):
         """
             updates the buffer using model rollouts, using the most recent samples in env_buffer
             stops when the buffer is full (max_size + bacthsize -1) or the env_buffer is exhausted
         """
+        pdb.set_trace()
         env_buffer = self.env_buffer
         buffer = self.buffer
         batch_size = self.batch_size
@@ -229,7 +229,7 @@ class RL(object):
             a = self.agent.act(s, batched=True)
             for i in range(self.branch):
                 r, s1, d = self.agent.roll(s, a)
-                buffer.store(s, a, r, s1, d)
+                buffer.storeBatch(s, a, r, s1, d)
             batch = env_buffer.iterBatch(batch_size)
             
     def step(self):
@@ -247,7 +247,8 @@ class RL(object):
         self.episode_reward += r
         self.episode_len += 1
         self.env_buffer.store(state, a, r, s1, d)
-        if d or (self.episode_len == self.max_ep_len):
+        if d.all() or (self.episode_len == self.max_ep_len):
+            """ for compatibility, allow different agents to have different done"""
             self.logger.log(episode_reward=self.episode_reward, episode_len=self.episode_len, episode=None)
             o, self.episode_reward, self.episode_len = self.env.reset(), 0, 0
         
@@ -256,6 +257,7 @@ class RL(object):
         last_save = 0
         pbar = iter(tqdm(range(int(1e6))))
         for t in range(self.start_step, self.n_step): 
+            print(t)
             self.t = t
             self.step()
             

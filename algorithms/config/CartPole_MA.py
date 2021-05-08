@@ -13,15 +13,15 @@ class CartpoleWrapper(gym.Wrapper):
 
     def reset(self):
         state = self.env.reset()
-        self.state=[state]*self.n_agent
+        self.state = np.array([state]*self.n_agent)
         return self.state
         
     def step(self, a):
-        n_agent = a.shape[0]
+        n_agent = self.n_agent
         a = a[random.randint(n_agent)]
         state, reward, done, info = self.env.step(a)
-        self.state = [state]*n_agent
-        return [state]*n_agent, [reward]*n_agent, [done]*n_agent, None
+        self.state = np.array([state]*n_agent)
+        return self.state, np.array([reward]*n_agent), np.array([done]*n_agent), None
     
 env_name = 'CartPole-v1'
 env_fn = lambda: CartpoleWrapper(gym.make(env_name))

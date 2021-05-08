@@ -5,7 +5,22 @@ import random
 import torch
 import wandb
 import pdb
+import dill # overrides multiprocessing
 
+def _runDillEncoded(payload):
+    fun, args = dill.loads(payload)
+    return fun(args)
+
+def _worker(args):
+    """ invokes the agents in parallel"""
+    agent = args.pop('agent')
+    func = getattr(agent, args.pop('func'))
+    result = func(**args)
+    return result
+
+def parallelEval(pool, args):
+    payload = [dill.dumps((_worker, item)) for item in args]
+    return list(pool.map(_runDillEncoded, payload, chunksize=1))
 
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
@@ -40,11 +55,15 @@ def dictSplit(dic, dim=1):
         results.append(tmp)
     return results
 
-def listStack(lst, dim=1):
-    """ takes a list of lists and stacks the inner lists """
-    result = [torch.stack(item, dim=dim) for item in lst]
-    return result
-    
+def listStack(lst, dim=0):
+    """ 
+    takes a list (agent parallel) of lists (return values) and stacks the outer lists
+    .stack inserts a new dim *after* dim
+    """
+    results = []
+    for i in range(len(lst[0])):
+        results += [torch.stack([item[i] for item in lst], dim=dim)]
+    return results
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -118,7 +137,7 @@ class Logger(object):
         filename = f"{self.buffer[self.step_key]}.pt"
         with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
             torch.save(model.state_dict(), f)
-        print(f"checkpoint save as {filename}")
+        print(f"checkpoint saved as {filename}")
         
     def log(self, raw_data=None, rolling=None, **kwargs):
         if raw_data is None:

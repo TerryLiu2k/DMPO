@@ -1,7 +1,9 @@
 from copy import deepcopy
-from concurrent.futures import ProcessPoolExecutor
-from .utils import dictSelect, dictSplit, listStack
+from torch.multiprocessing import Pool, Process, set_start_method
+
+from .utils import dictSelect, dictSplit, listStack, parallelEval
 from .models import *
+
 """
     Not implemented yet:
         PPO, SAC continous action, MBPO continous action 
@@ -53,19 +55,18 @@ class QLearning(nn.Module):
         self.q_params = itertools.chain(self.q1.parameters(), self.q2.parameters())
         self.q_optimizer = Adam(self.q_params, lr=q_args.lr)
         
-    def updateQ(self, data):
-        o, a, r, o2, d = data['s'], data['a'], data['r'], data['s1'], data['d']
-
-        q1 = self.q1(o, a)
-        q2 = self.q2(o, a)
+    def updateQ(self, s, a, r, s1, d):
+        
+        q1 = self.q1(s, a)
+        q2 = self.q2(s, a)
 
         # Bellman backup for Q functions
         with torch.no_grad():
             # Target actions come from *current* policy
-            q_next = torch.min(self.q1(o2), self.q2(o2))
+            q_next = torch.min(self.q1(s1), self.q2(s1))
             a = q_next.argmax(dim=1)
-            q1_pi_targ = self.q1_target(o2, a)
-            q2_pi_targ = self.q2_target(o2, a)
+            q1_pi_targ = self.q1_target(s1, a)
+            q2_pi_targ = self.q2_target(s1, a)
             q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
             backup = r + self.gamma * (1 - d) * (q_pi_targ)
 
@@ -152,7 +153,7 @@ class SAC(QLearning):
                     a = a[0]
             return a.detach()
     
-    def updatePi(self, data):
+    def updatePi(self, o, **kwargs):
         o = data['s']
         if isinstance(self.action_space, Discrete):
             pi = self.pi(o) + 1e-5 # avoid nan
@@ -182,26 +183,24 @@ class SAC(QLearning):
             self.pi_optimizer.step()
 
     
-    def updateQ(self, data):
+    def updateQ(self, s, a, r, s1, d):
         """
             uses alpha to encourage diversity
             for discrete action spaces, different from QLearning since we have a policy network
                 takes all possible next actions
         """
-        o, a, r, o2, d = data['s'], data['a'], data['r'], data['s1'], data['d']
-        
-        q1 = self.q1(o, a)
-        q2 = self.q2(o, a)
+        q1 = self.q1(s, a)
+        q2 = self.q2(s, a)
         
         if isinstance(self.action_space, Discrete):
             # Bellman backup for Q functions
             with torch.no_grad():
                 # Target actions come from *current* policy
-                q_next = torch.min(self.q1(o2), self.q2(o2))
-                a2 = self.pi(o2).detach() # [b, n_a]
+                q_next = torch.min(self.q1(s1), self.q2(s1))
+                a2 = self.pi(s1).detach() # [b, n_a]
                 loga2 = torch.log(a2)
-                q1_pi_targ = self.q1_target(o2)
-                q2_pi_targ = self.q2_target(o2) # [b, n_a]
+                q1_pi_targ = self.q1_target(s1)
+                q2_pi_targ = self.q2_target(s1) # [b, n_a]
                 q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ) - self.alpha * loga2
                 q_pi_targ = (a2*q_pi_targ).sum(dim=1)
                 backup = r + self.gamma * (1 - d) * (q_pi_targ)
@@ -246,12 +245,11 @@ class MBPO(SAC):
         self.p_params = itertools.chain(*[item.parameters() for item in self.ps])
         self.p_optimizer = Adam(self.p_params, lr=p_args.lr)
         
-    def updateP(self, data):
-        o, a, r, o2, d = data['s'], data['a'], data['r'], data['s1'], data['d']
+    def updateP(self, s, a, r, s1, d):
         loss = 0
 
         for i in range(self.n_p):
-            loss = loss + self.ps[i](o, a, r, o2, d)
+            loss = loss + self.ps[i](s, a, r, s1, d)
         self.p_optimizer.zero_grad()
         loss.sum().backward()
         torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
@@ -270,13 +268,7 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-def parallelEval(args):
-    """ invokes the agents in parallel"""
-    self = args.pop('self')
-    rank = args.pop('rank')
-    func = getattr(self.agents[rank], args.pop('func'))
-    result = func(**args)
-    return result
+
     
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, **agent_args):
@@ -288,33 +280,37 @@ class MultiAgent(nn.Module):
         super().__init__()
         agent_fn = agent_args['agent']
         self.agents = nn.ModuleList([agent_fn(**agent_args) for i in range(n_agent)])
-        self.pool = ProcessPoolExecutor(n_agent)
+        for attr in ['ps', 'q', 'pi']:
+            if hasattr(self.agents[0], attr):
+                setattr(self, attr, True)
+        self.pool = Pool(n_agent)
         
-    def roll(self, S, A):
-        inputs = dictSplit({'s': S, 'a': A, 'func': 'roll', 'agent': self.agents})
-        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
+    def roll(self, **data):
+        data['func'] = 'roll'
+        data['agent'] = self.agents
+        results = parallelEval(self.pool, inputs)
         return results
     
-    def updateP(self, data):
+    def updateP(self, **data):
         data['func'] = 'updateP'
         data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
+        results = parallelEval(self.pool, inputs)
         
-    def updateQ(self, data):
+    def updateQ(self, **data):
         data['func'] = 'updateQ'
         data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
+        results = parallelEval(self.pool, inputs)
 
-    def updatePi(self, data):
+    def updatePi(self, **data):
         data['func'] = 'updatePi'
         data['agent'] = self.agents
         inputs = dictSplit(data)
-        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
+        results = parallelEval(self.pool, inputs)
 
     def act(self, S, deterministic=False):
-        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
-        results = list(self.pool.map(parallelEval, inputs, chunksize= 1))
-        results = listStack(results, 1)
+        inputs = dictSplit({'o': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
+        results = parallelEval(self.pool, inputs)
+        results, = listStack(results)
         return results
