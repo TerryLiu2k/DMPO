@@ -54,7 +54,11 @@ class CACCWrapper(gym.Wrapper):
         done = np.array([done]*8, dtype=np.float32)
         state = self._k_hop(state)
         self.state=state
-        return state, reward/1000, done, None
+        """
+        collision yields -1000*8, while the initial reward is -170, -1600 before collision
+        I am worried if -8000 is a good solution compared with -170*(1/(1-gamma))...
+        """
+        return state, (reward+2000)/2000, done, None
         
 
 env_name = 'CACC_catchup'

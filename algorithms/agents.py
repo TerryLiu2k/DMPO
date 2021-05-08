@@ -116,7 +116,6 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
-        # eps = 0
         self.alpha = alpha
         self.eps = 1 # linearly decrease to 0,
         #switching from 1 to 0 in a sudden causes nan on some tasks
@@ -282,6 +281,7 @@ class MultiAgent(nn.Module):
         super().__init__()
         agent_fn = agent_args['agent']
         self.agents = nn.ModuleList([agent_fn(**agent_args) for i in range(n_agent)])
+            
         for attr in ['ps', 'q1', 'pi']:
             if hasattr(self.agents[0], attr):
                 setattr(self, attr, True)

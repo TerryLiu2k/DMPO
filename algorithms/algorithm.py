@@ -188,7 +188,7 @@ class RL(object):
             d=np.array(d)
             ep_ret += r
             ep_len += 1
-        self.logger.log(TestEpRet=ep_ret, TestEpLen=ep_len, test_episode=None)
+        self.logger.log(TestEpRet=ep_ret.mean(), TestEpLen=ep_len, test_episode=None)
         
     def updateAgent(self):
         agent = self.agent
@@ -243,13 +243,19 @@ class RL(object):
         a = a.squeeze(0).detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)
-        d = np.array(d)
         self.episode_reward += r
         self.episode_len += 1
+        if self.episode_len == self.max_ep_len:
+            """
+                some envs return done when episode len is maximum,
+                this breaks the Markov property
+            """
+            d = np.zeros(d.shape, dtype=np.float32)
+        d = np.array(d)
         self.env_buffer.store(state, a, r, s1, d)
         if d.all() or (self.episode_len == self.max_ep_len):
             """ for compatibility, allow different agents to have different done"""
-            self.logger.log(episode_reward=self.episode_reward, episode_len=self.episode_len, episode=None)
+            self.logger.log(episode_reward=self.episode_reward.mean(), episode_len=self.episode_len, episode=None)
             _, self.episode_reward, self.episode_len = self.env.reset(), 0, 0
         
     def run(self):
