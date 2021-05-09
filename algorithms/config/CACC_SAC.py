@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils import Config, Logger
+from ..utils import Config, Logger, setSeed
 from ..models import MLP
 from ..agents import SAC, MultiAgent
 from ..algorithm import RL
@@ -45,10 +45,10 @@ pi_args.lr=3e-4
 pi_args.sizes = [5*(1+2*neighbor_radius), 32, 64, 4] 
 
 agent_args=Config()
-def agent_fn(**agent_args):
+def MultiagentSAC(**agent_args):
     agent_args['agent']=SAC
     return MultiAgent(**agent_args)
-agent_args.agent=agent_fn
+agent_args.agent=MultiagentSAC
 agent_args.n_agent=8
 agent_args.gamma=0.99
 agent_args.alpha=0.2 *0.2 # reward rescaled

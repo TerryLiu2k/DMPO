@@ -71,10 +71,10 @@ pi_args.sizes = [5*(1+2*neighbor_radius), 32, 64, 4]
 pi_args.update_interval=1/20
 
 agent_args=Config()
-def agent_fn(**agent_args):
+def MultiagentMBPO(**agent_args):
     agent_args['agent']=MBPO
     return MultiAgent(**agent_args)
-agent_args.agent=agent_fn
+agent_args.agent=MultiagentMBPO
 agent_args.n_agent=8
 agent_args.gamma=0.99
 agent_args.alpha=0.2 *0.2

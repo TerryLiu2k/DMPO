@@ -7,9 +7,10 @@ Algorithms:
 
 Features:
 * Object oriented ontology
-* Multiagent RL with multiprocessing
+* Multiagent RL
 * Advanced logging
-    * Parallel logging from multiprocess
+    * Logger with a local buffer and a remote hosted dashboard
+    * Scales to multiagent environments
 * Visualization of environments
 
 Example:

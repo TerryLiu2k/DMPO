@@ -113,7 +113,8 @@ class TabularLogger(object):
     def log(dic, commit=False):
         if commit:
             print
-        
+   
+STEP = 0
 class Logger(object):
     """
     A logger wrapper with buffer for visualized logger backends, such as tb or wandb
@@ -133,15 +134,18 @@ class Logger(object):
     """
     def __init__(self, args, mute=False, rank=0, parent=None):
         if not mute:
-            group = f"{args.algo_args.env_fn.__name__}_{args.algo_args.agent_args.agent.__name__}"
-            name = f"{group}_{rank}" if rank else group
-            run=wandb.init(
-                project="RL",
-                config=args._toDict(recursive=True),
-                name=name,
-                group=group,
-            )
-            self.logger = run
+            if parent is None:
+                group = args.algo_args.env_fn.__name__
+                name = f"{group}_{args.algo_args.agent_args.agent.__name__}"
+                run=wandb.init(
+                    project="RL",
+                    config=args._toDict(recursive=True),
+                    name=name,
+                    group=group,
+                )
+                self.logger = run
+            else:
+                self.logger = parent.logger
         self.mute = mute
         self.args = args
         self.step_key = 'interaction'
@@ -154,7 +158,7 @@ class Logger(object):
         self.last_log = time.time()
 
     def fork(self, n):
-        loggers = [Logger(self.args, mute=self.mute, rank=i, parent=self) for i in range(n)]
+        loggers = [Logger(self.args, mute=self.mute, rank=i+1, parent=self) for i in range(n)]
         return loggers
         
     def save(self, model):
@@ -180,9 +184,7 @@ class Logger(object):
             if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0:
                 data[key+'_mean'] = data[key].mean()
             
-        if self.rank > 0:
-            data[self.step_key] = self.parent.buffer[self.step_key]
-            
+        # updates the buffer
         for key in data:
             if data[key] is None:
                 if not key in self.buffer:
@@ -205,9 +207,24 @@ class Logger(object):
                     self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling
                 else:
                     self.buffer[key] = data[key]
+
+        if self.rank > 0:
+            self.buffer[self.step_key] = self.parent.buffer[self.step_key]
         
-        if not self.mute and self.rank is 0 and time.time()>self.log_period+self.last_log:
-            self.logger.log(data=self.buffer, step =self.buffer[self.step_key], commit=True)
+        # uploading
+        if not self.mute and time.time()>self.log_period+self.last_log:
+            if self.rank > 0:
+                data = {}
+                for key in self.buffer:
+                    if key == self.step_key:
+                        continue
+                    data[f"agent{self.rank}_{key}"] = self.buffer[key]
+            else:
+                data = self.buffer
+
+            self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
+            # "warning: step must only increase "commit = True
+            # because wandb assumes step must increase per commit
             self.last_log = time.time()
 
 def setSeed(seed):

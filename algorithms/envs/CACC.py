@@ -62,7 +62,9 @@ class CACCWrapper(gym.Wrapper):
         
 
 def CACC_catchup(k):
-    return lambda: CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', k)
+    def CACC_khop():
+        return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', k)
+    return CACC_khop 
 
 env_fn = CACC_catchup
 env = env_fn(1)()
