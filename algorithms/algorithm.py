@@ -233,7 +233,7 @@ class RL(object):
         self.logger.log(interaction=None)
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
         eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
-        self.agent.eps = np.clip(eps, 0, 1)
+        self.agent.setEps(np.clip(eps, 0, 1))
         a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device).unsqueeze(0))    
         a = a.squeeze(0).detach().cpu().numpy()
         # Step the env

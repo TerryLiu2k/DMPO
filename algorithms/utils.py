@@ -133,15 +133,15 @@ class Logger(object):
         children get n_interaction from parent
     """
     def __init__(self, args, mute=False, rank=0, parent=None):
+        self.group = args.algo_args.env_fn.__name__
+        self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
         if not mute:
             if parent is None:
-                group = args.algo_args.env_fn.__name__
-                name = f"{group}_{args.algo_args.agent_args.agent.__name__}"
                 run=wandb.init(
                     project="RL",
                     config=args._toDict(recursive=True),
-                    name=name,
-                    group=group,
+                    name=self.name,
+                    group=self.group,
                 )
                 self.logger = run
             else:
@@ -163,10 +163,10 @@ class Logger(object):
         
     def save(self, model):
         if self.rank is 0 and time.time() - self.last_save >= self.save_period:
-            exists_or_mkdir(f"checkpoints/{self.args.name}")
+            exists_or_mkdir(f"checkpoints/{self.name}")
             filename = f"{self.buffer[self.step_key]}.pt"
             if not self.mute:
-                with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
+                with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
                     torch.save(model.state_dict(), f)
                 print(f"checkpoint saved as {filename}")
             else:

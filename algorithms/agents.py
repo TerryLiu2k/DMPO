@@ -108,6 +108,9 @@ class QLearning(nn.Module):
             if not deterministic and random.random()<self.eps:
                 return torch.as_tensor(self.action_space.sample())
             return a
+        
+    def setEps(self, eps):
+        self.eps = eps
     
 class SAC(QLearning):
     """ Actor Critic (Q function) """
@@ -320,3 +323,7 @@ class MultiAgent(nn.Module):
         inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
         results = parallelEval(self.pool, inputs)
         return torch.stack(results, dim=1)
+    
+    def setEps(self, eps):
+        for agent in self.agents:
+            agent.setEps(eps)
