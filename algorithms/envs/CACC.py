@@ -61,9 +61,10 @@ class CACCWrapper(gym.Wrapper):
         return state, (reward+2000)/2000, done, None
         
 
-env_name = 'CACC_catchup'
-env_fn = lambda k: (lambda: CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', k))
+def CACC_catchup(k):
+    return lambda: CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', k)
 
+env_fn = CACC_catchup
 env = env_fn(1)()
 result  = np.array(env.reset())
 print(result, result.dtype)

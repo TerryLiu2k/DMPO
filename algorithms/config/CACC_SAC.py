@@ -4,7 +4,7 @@ from ..utils import Config, Logger
 from ..models import MLP
 from ..agents import SAC, MultiAgent
 from ..algorithm import RL
-from ..envs.CACC import env_name, env_fn
+from ..envs.CACC import env_fn
 
 """
     Compared with QLearning, alpha instead of eps
@@ -27,10 +27,8 @@ algo_args.replay_size=int(1e5)
 # high replay size slows down training a lot
 # since new samples are less frequently sampled
 algo_args.test_interval = int(1e3)
-algo_args.seed=0
-algo_args.save_interval=1800
-algo_args.log_interval=int(10)
 algo_args.n_step=int(1e8)
+algo_args.neighbor_radius = neighbor_radius
 
 q_args=Config()
 q_args.network = MLP
@@ -59,14 +57,14 @@ agent_args.target_sync_rate=5e-3
 # high sync rate causes q becomes nan 
 
 args = Config()
-args.env_name=env_name
-args.name=f"{args.env_name}_{agent_args.agent}"
 device = 0
-args.neighbor_radius = neighbor_radius
+args.save_period=1800 # in seconds
+args.log_period=int(20)
+args.seed = 0
 
-q_args.env_fn = env_fn(args.neighbor_radius)
-agent_args.env_fn = env_fn(args.neighbor_radius)
-algo_args.env_fn = env_fn(args.neighbor_radius)
+q_args.env_fn = env_fn(algo_args.neighbor_radius)
+agent_args.env_fn = env_fn(algo_args.neighbor_radius)
+algo_args.env_fn = env_fn(algo_args.neighbor_radius)
 
 agent_args.p_args = None
 agent_args.q_args = q_args
@@ -74,4 +72,5 @@ agent_args.pi_args = pi_args
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
 
+setSeed(args.seed)
 RL(logger = Logger(args, mute=debug), device=device, **algo_args._toDict()).run()

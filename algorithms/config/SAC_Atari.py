@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils import Config, Logger
+from ..utils import Config, Logger, setSeed
 from ..models import CNN
 from ..agents import SAC
 from ..algorithm import RL
@@ -21,9 +21,6 @@ algo_args.n_warmup=int(3e4)
 algo_args.replay_size=int(2e5)
 #  rainbow used 1e6
 algo_args.test_interval = int(3e4)
-algo_args.seed=0
-algo_args.save_interval=600
-algo_args.log_interval=int(2e2)
 algo_args.n_step=int(1e8)
 
 q_args=Config()
@@ -54,8 +51,9 @@ agent_args.target_sync_rate=2/1000
 # also called tau
 
 args = Config()
-args.env_name="Breakout-v0"
-args.name=f"{args.env_name}_{agent_args.agent}"
+args.save_period=1800 # in seconds
+args.log_period=int(20)
+args.seed=0
 device = 0
 
 q_args.env_fn = env_fn
@@ -68,4 +66,5 @@ agent_args.pi_args = pi_args
 algo_args.agent_args = agent_args
 args.algo_args = algo_args # do not call toDict() before config is set
 
+setSeed(args.seed)
 RL(logger = Logger(args), device=device, **algo_args._toDict()).run()

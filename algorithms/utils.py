@@ -1,10 +1,11 @@
 import os
 import gym
-import numpy as np
 import random
+import numpy as np
 import torch
 import wandb
 import pdb
+import time
 import dill # overrides multiprocessing
 
 def _runDillEncoded(payload):
@@ -18,9 +19,18 @@ def _worker(args):
     result = func(**args)
     return result
 
-def parallelEval(pool, args):
+def _parallelEval(pool, args):
     payload = [dill.dumps((_worker, item)) for item in args]
     return list(pool.map(_runDillEncoded, payload, chunksize=1))
+
+def parallelEval(pool, args):
+    results = []
+    for i, arg in enumerate(args):
+        agent = arg.pop('agent')
+        func = getattr(agent, arg.pop('func'))
+        result = func(**arg)
+        results.append(result)
+    return results
 
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
@@ -116,30 +126,48 @@ class Logger(object):
     syntactic sugar
         supports both .log(data={key: value}) and .log(key=value) 
     custom x axis (wandb is buggy about this)
+    multiagent multiprocess logger
+        rank = 0 is the algo logger
+        rank =1 ,... are the agent loggers
+        children get n_interaction from parent
     """
-    def __init__(self, args, mute=False):
+    def __init__(self, args, mute=False, rank=0, parent=None):
         if not mute:
+            group = f"{args.algo_args.env_fn.__name__}_{args.algo_args.agent_args.agent.__name__}"
+            name = f"{group}_{rank}" if rank else group
             run=wandb.init(
                 project="RL",
                 config=args._toDict(recursive=True),
-                name=args.name,
-                group=args.env_name,
+                name=name,
+                group=group,
             )
             self.logger = run
         self.mute = mute
         self.args = args
-        self.buffer = {}
         self.step_key = 'interaction'
+        self.buffer = {self.step_key: 0}
+        self.parent = parent
+        self.rank = rank
+        self.log_period = args.log_period
+        self.save_period = args.save_period
+        self.last_save = time.time()
+        self.last_log = time.time()
+
+    def fork(self, n):
+        loggers = [Logger(self.args, mute=self.mute, rank=i, parent=self) for i in range(n)]
+        return loggers
         
     def save(self, model):
-        exists_or_mkdir(f"checkpoints/{self.args.name}")
-        filename = f"{self.buffer[self.step_key]}.pt"
-        if not self.mute:
-            with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
-                torch.save(model.state_dict(), f)
-            print(f"checkpoint saved as {filename}")
-        else:
-            print("not saving checkpoints because the logger is muted")
+        if self.rank is 0 and time.time() - self.last_save >= self.save_period:
+            exists_or_mkdir(f"checkpoints/{self.args.name}")
+            filename = f"{self.buffer[self.step_key]}.pt"
+            if not self.mute:
+                with open(f"checkpoints/{self.args.name}/{filename}", 'wb') as f:
+                    torch.save(model.state_dict(), f)
+                print(f"checkpoint saved as {filename}")
+            else:
+                print("not saving checkpoints because the logger is muted")
+            self.last_save = time.time()
         
     def log(self, raw_data=None, rolling=None, **kwargs):
         if raw_data is None:
@@ -147,10 +175,13 @@ class Logger(object):
         raw_data.update(kwargs)
         
         data = {}
-        for key in raw_data: # computes the mean for histograms
+        for key in raw_data: # also logs the mean for histograms
             data[key] = raw_data[key]
             if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0:
                 data[key+'_mean'] = data[key].mean()
+            
+        if self.rank > 0:
+            data[self.step_key] = self.parent.buffer[self.step_key]
             
         for key in data:
             if data[key] is None:
@@ -174,7 +205,13 @@ class Logger(object):
                     self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling
                 else:
                     self.buffer[key] = data[key]
-                
-    def flush(self):
-        if not self.mute:
+        
+        if not self.mute and self.rank is 0 and time.time()>self.log_period+self.last_log:
             self.logger.log(data=self.buffer, step =self.buffer[self.step_key], commit=True)
+            self.last_log = time.time()
+
+def setSeed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True

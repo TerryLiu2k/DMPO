@@ -1,12 +1,16 @@
-Features:
-    Object oriented ontology
-    Multiagent RL with multiprocessing
-    Advanced logging
-    
-Algorithms:
-    Qlearning
-    SAC for discrete action
-    MBPO for discrete action
+Author: Hangrui (Henry) Bi
 
-example:
-    python -c "import algorithms.config.SAC_CartPole"
+Algorithms:
+* Qlearning
+* SAC for discrete action
+* MBPO for discrete action
+
+Features:
+* Object oriented ontology
+* Multiagent RL with multiprocessing
+* Advanced logging
+    * Parallel logging from multiprocess
+* Visualization of environments
+
+Example:
+> python -c "import algorithms.config.SAC_CartPole"

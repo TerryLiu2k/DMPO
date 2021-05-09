@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils import Config, Logger
+from ..utils import Config, Logger, setSeed
 from ..models import MLP
 from ..agents import MBPO
 from ..algorithm import RL
@@ -25,10 +25,7 @@ else:
 algo_args.replay_size=int(1e6)
 algo_args.max_ep_len=500
 algo_args.test_interval = int(1e3)
-algo_args.seed=0
 algo_args.batch_size=256 # the same as MBPO
-algo_args.save_interval=600 # in seconds
-algo_args.log_interval=int(2e3/200)
 algo_args.n_step=int(1e8)
 
 p_args=Config()
@@ -73,8 +70,9 @@ agent_args.target_sync_rate=5e-3
 # sync rate per update = update interval/target sync interval
 
 args = Config()
-args.env_name=env_name
-args.name=f"{args.env_name}_{agent_args.agent}"
+args.save_period=1800 # in seconds
+args.log_period=int(20)
+args.seed=0
 device = 0
 
 q_args.env_fn = env_fn
@@ -90,5 +88,5 @@ args.algo_args = algo_args # do not call toDict() before config is set
 print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
 # each generated data will be used so many times
 
-
+setSeed(args.seed)
 RL(logger = Logger(args), device=device, **algo_args._toDict()).run()

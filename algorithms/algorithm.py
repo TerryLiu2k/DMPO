@@ -87,8 +87,7 @@ class RL(object):
     def __init__(self, logger, device,
        env_fn, agent_args,
         n_warmup, batch_size, replay_size,
-       max_ep_len, test_interval, save_interval,
-       seed, n_step, log_interval,
+       max_ep_len, test_interval, n_step, 
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
        checkpoint_dir=None, start_step = 0,
        **kwargs):
@@ -99,8 +98,6 @@ class RL(object):
         warmup:
             model, q, and policy each warmup for n_warmup steps before used
         """
-        torch.manual_seed(seed)
-        np.random.seed(seed)
 
         agent = agent_args.agent(logger=logger, **agent_args._toDict())
         agent = agent.to(device)
@@ -121,8 +118,6 @@ class RL(object):
         self.logger = logger
         self.device=device
         
-        self.save_interval = save_interval
-        self.log_interval = log_interval
         self.test_interval = test_interval
         
         # Experience buffer
@@ -272,12 +267,7 @@ class RL(object):
                 
             self.updateAgent()
             
-            if time.time() - last_save >= self.save_interval:
-                self.logger.save(self.agent)
-                last_save = time.time()
-
+            self.logger.save(self.agent) # automatically deals with the save period
+                
             if t % self.test_interval == 0:
                 self.test()
-
-            if t % self.log_interval == 0:
-                self.logger.flush()    

@@ -269,8 +269,6 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-
-    
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, **agent_args):
         """
@@ -280,12 +278,18 @@ class MultiAgent(nn.Module):
         """
         super().__init__()
         agent_fn = agent_args['agent']
-        self.agents = nn.ModuleList([agent_fn(**agent_args) for i in range(n_agent)])
-            
+        logger = agent_args.pop('logger')
+        loggers = logger.fork(n_agent)
+        self.agents = []
+        for i in range(n_agent):
+            self.agents.append(agent_fn(logger = loggers[i], **agent_args))
+        self.agents = nn.ModuleList(self.agents)
+        
         for attr in ['ps', 'q1', 'pi']:
             if hasattr(self.agents[0], attr):
                 setattr(self, attr, True)
-        self.pool = Pool(n_agent)
+        self.pool = None #Pool(n_agent)
+        # removed agent parallelism for it does not yield any performance gain
         
     def roll(self, **data):
         data['func'] = 'roll'
