@@ -127,16 +127,17 @@ class Logger(object):
     syntactic sugar
         supports both .log(data={key: value}) and .log(key=value) 
     custom x axis (wandb is buggy about this)
-    multiagent multiprocess logger
-        rank = 0 is the algo logger
-        rank =1 ,... are the agent loggers
-        children get n_interaction from parent
+    logger hiearchy and multiagent multiprocess logger
+        the prefix does not end with "/"
+        prefix = "" is the root logger
+        prefix = "*/agent0" ,... are the agent loggers
+        children get n_interaction from the root logger
     """
-    def __init__(self, args, mute=False, rank=0, parent=None):
+    def __init__(self, args, mute=False, prefix = "", root=None):
         self.group = args.algo_args.env_fn.__name__
         self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
         if not mute:
-            if parent is None:
+            if root is None:
                 run=wandb.init(
                     project="RL",
                     config=args._toDict(recursive=True),
@@ -145,24 +146,33 @@ class Logger(object):
                 )
                 self.logger = run
             else:
-                self.logger = parent.logger
+                self.logger = root.logger
         self.mute = mute
         self.args = args
         self.step_key = 'interaction'
         self.buffer = {self.step_key: 0}
-        self.parent = parent
-        self.rank = rank
+        if root is None:
+            self.root = self
+        else:
+            self.root = root
+        self.prefix = prefix
+        # the prefix of the log keys, also used like a rank for multiprocessing
         self.log_period = args.log_period
         self.save_period = args.save_period
         self.last_save = time.time()
-        self.last_log = time.time()
+        self.last_log = 0
 
     def fork(self, n):
-        loggers = [Logger(self.args, mute=self.mute, rank=i+1, parent=self) for i in range(n)]
+        """ for multiprocess logging, not used now """
+        loggers = [Logger(self.args, mute=self.mute, prefix=str(i+1), root=self.root) for i in range(n)]
         return loggers
+    
+    def child(self, name):
+        logger = Logger(self.args, mute=self.mute, prefix=self.prefix+"/"+name, root=self.root)
+        return logger
         
     def save(self, model):
-        if self.rank is 0 and time.time() - self.last_save >= self.save_period:
+        if self.prefix == "" and time.time() - self.last_save >= self.save_period:
             exists_or_mkdir(f"checkpoints/{self.name}")
             filename = f"{self.buffer[self.step_key]}.pt"
             if not self.mute:
@@ -208,20 +218,18 @@ class Logger(object):
                 else:
                     self.buffer[key] = data[key]
 
-        if self.rank > 0:
-            self.buffer[self.step_key] = self.parent.buffer[self.step_key]
+        if not self.prefix == "":
+            self.buffer[self.step_key] = self.root.buffer[self.step_key]
         
         # uploading
         if not self.mute and time.time()>self.log_period+self.last_log:
-            if self.rank > 0:
-                data = {}
-                for key in self.buffer:
-                    if key == self.step_key:
-                        continue
-                    data[f"agent{self.rank}_{key}"] = self.buffer[key]
-            else:
-                data = self.buffer
-
+            data = {}
+            for key in self.buffer:
+                log_key = self.prefix+"/"+key
+                while log_key[0] == '/':
+                     # removes the first slash, to be wandb compatible
+                    log_key = log_key[1:]
+                data[log_key] = self.buffer[key]
             self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
             # "warning: step must only increase "commit = True
             # because wandb assumes step must increase per commit

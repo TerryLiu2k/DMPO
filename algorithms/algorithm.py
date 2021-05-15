@@ -183,7 +183,7 @@ class RL(object):
             d=np.array(d)
             ep_ret += r
             ep_len += 1
-        self.logger.log(TestEpRet=ep_ret.mean(), TestEpLen=ep_len, test_episode=None)
+        self.logger.log(test_episode_reward=ep_ret.mean(), test_episode_len=ep_len, test_episode=None)
         
     def updateAgent(self):
         agent = self.agent

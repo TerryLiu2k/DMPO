@@ -37,7 +37,7 @@ class ParameterizedModel(nn.Module):
     """
     def __init__(self, env_fn, logger, **net_args):
         super().__init__()
-        self.logger = logger
+        self.logger = logger.child("p")
         self.action_space=env_fn().action_space
         observation_dim=env_fn().observation_space.shape[0]
         input_dim = net_args['sizes'][0]
@@ -76,15 +76,21 @@ class ParameterizedModel(nn.Module):
             done = self.done_head(embedding).squeeze(1)
             
             state_loss = self.MSE(state, s1).mean(dim = 1)
+            state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True)).mean()
+            
             reward_loss = self.MSE(reward, r)
+            reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True)).mean()
+            
             done_loss = self.BCE(done, d)
             done = done > 0
 
             done_true_positive = (done*d).mean()
             d = d.mean()
             
-            self.logger.log(state_loss=state_loss, reward_loss=reward_loss, done_loss=done_loss)
-            self.logger.log(done_true_positive=done_true_positive, done=d, rolling=100)
+            self.logger.log(rel_state_loss=state_loss.mean()/state_var,
+                            reward_loss=reward_loss,
+                            reward_var=reward_var)
+            self.logger.log(done_loss=done_loss,done_true_positive=done_true_positive, done=d, rolling=100)
             return state_loss+reward_loss+10*done_loss
         
 class QCritic(nn.Module):

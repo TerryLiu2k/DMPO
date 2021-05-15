@@ -37,7 +37,7 @@ class QLearning(nn.Module):
             q_net is the network class
         """
         super().__init__()
-        self.logger = logger
+        self.logger = logger.child("QLearningAgent")
         self.gamma = gamma
         self.target_sync_rate=target_sync_rate
         self.eps = eps
@@ -85,7 +85,7 @@ class QLearning(nn.Module):
         self.q_optimizer.step()
 
         # Record things
-        self.logger.log(q_update=None, loss_q=loss_q/2, rolling=100)
+        self.logger.log(q_update=None, q_loss=loss_q/2, rolling=100)
         
         # update the target nets
         with torch.no_grad():
@@ -119,6 +119,7 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
+        self.logger = logger.child("SAC")
         self.alpha = alpha
         self.eps = 1 # linearly decrease to 0,
         #switching from 1 to 0 in a sudden causes nan on some tasks
@@ -171,7 +172,7 @@ class SAC(QLearning):
             regret = optimum - (pi*q).sum(dim=1)
             loss = regret.mean()
             entropy = -(pi*logp).sum(dim=1).mean(dim=0)
-            self.logger.log(entropy=entropy, pi_regret=loss)
+            self.logger.log(pi_entropy=entropy, pi_regret=loss)
         else:
             action, logp = self.pi(s)
             q1 = self.q1(s, action)
@@ -241,6 +242,8 @@ class MBPO(SAC):
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, pi_args, alpha, gamma, target_sync_rate, **kwargs)
+        logger = logger.child("MBPO")
+        self.logger = logger
         self.n_p = p_args.n_p
         if isinstance(self.action_space, Box): #continous
             ps = [None for i in range(self.n_p)]
@@ -282,10 +285,9 @@ class MultiAgent(nn.Module):
         super().__init__()
         agent_fn = agent_args['agent']
         logger = agent_args.pop('logger')
-        loggers = logger.fork(n_agent)
         self.agents = []
         for i in range(n_agent):
-            self.agents.append(agent_fn(logger = loggers[i], **agent_args))
+            self.agents.append(agent_fn(logger = logger.child(f"{i}"), **agent_args))
         self.agents = nn.ModuleList(self.agents)
         
         for attr in ['ps', 'q1', 'pi']:

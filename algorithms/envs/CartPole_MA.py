@@ -24,7 +24,9 @@ class CartpoleWrapper(gym.Wrapper):
         return self.state, np.array([reward]*n_agent), np.array([done]*n_agent), None
     
 env_name = 'CartPole-v1'
-env_fn = lambda: CartpoleWrapper(gym.make(env_name))
+def CartPole():
+    return CartpoleWrapper(gym.make(env_name))
+env_fn = CartPole
 
 env = env_fn()
 result  = np.array(env.reset())
