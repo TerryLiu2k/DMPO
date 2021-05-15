@@ -8,6 +8,9 @@ from ..envs.CartPole import env_name, env_fn
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
+    Notice that the q function on CartPole diverges using this config,
+    even with gradient clip and linear eps
+    perhaps we shoud decrease gamma to 0.95
 """
 algo_args = Config()
 
@@ -17,7 +20,7 @@ else:
     algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
 """
  rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
- bs256lr3e-4, it takes 2e4updates
+ bs256lr3e-4, it takes 2e4updates (2k interactions)
  for the model on CartPole to learn done...
 
  Only 3e5 samples are needed for parameterized input continous motion control

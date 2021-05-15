@@ -276,11 +276,21 @@ class MBPO(SAC):
         return  r, s1, d
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, **agent_args):
+    def __init__(self, n_agent, wrappers, **agent_args):
         """
-            A wrapper for Multi Agent RL
-            Assumes s, a, r, d of shape [b, n_agent, ...]
-            (since in general, d may be different for each agent)
+            A meta-agent for Multi Agent RL.
+            It does not expect the env interface is explicitly splited for each agent
+            because in general it is not always possible (e.g. we may want p take k-hop s and predict local s..).
+            The env wrappers that broadcast, scatter and gather s, a, r, d should be registered in this class
+            The wrappers are functions named: 
+                p_in(s, a) -> (s, r, d), p_out (s, r, d)
+                q(s, a, r, s1) or v(s, r, s), (only in, no out)
+                pi_in(s, q), pi_out(a).
+            Notice that the model p has two wrappers, which may wrap s differently.
+            and p_out is a function instead of an env wrapper (since p is not currently wrapped as an env)
+            It is preferred that the env interface contains no redundancy for memory saving,
+            which also requires env-wrapper-after-buffer
+            d should be of shape [batch, n_agent], which may be different for each agent
         """
         super().__init__()
         agent_fn = agent_args['agent']
@@ -289,7 +299,7 @@ class MultiAgent(nn.Module):
         for i in range(n_agent):
             self.agents.append(agent_fn(logger = logger.child(f"{i}"), **agent_args))
         self.agents = nn.ModuleList(self.agents)
-        
+        self.wrappers = wrappers
         for attr in ['ps', 'q1', 'pi']:
             if hasattr(self.agents[0], attr):
                 setattr(self, attr, True)
@@ -299,32 +309,40 @@ class MultiAgent(nn.Module):
     def roll(self, **data):
         data['func'] = 'roll'
         data['agent'] = self.agents
-        inputs = dictSplit(data)
+        pdb.set_trace()
+        data = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, inputs)
-        return listStack(results)
+        return self.wrappers['p_out'](results)
     
     def updateP(self, **data):
+        pdb.set_trace()
         data['func'] = 'updateP'
         data['agent'] = self.agents
-        inputs = dictSplit(data)
+        data = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, inputs)
         
     def updateQ(self, **data):
+        pdb.set_trace()
         data['func'] = 'updateQ'
         data['agent'] = self.agents
-        inputs = dictSplit(data)
+        data = self.wrappers['q'](data)
         results = parallelEval(self.pool, inputs)
 
     def updatePi(self, **data):
+        """
+        TODO: modify this
+        """
+        pdb.set_trace()
         data['func'] = 'updatePi'
         data['agent'] = self.agents
-        inputs = dictSplit(data)
+        data = self.wrappers['pi_in'](data)
         results = parallelEval(self.pool, inputs)
 
     def act(self, S, deterministic=False):
-        inputs = dictSplit({'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents})
+        inputs = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents}
+        inputs = self.wrappers['pi_in'](inputs)
         results = parallelEval(self.pool, inputs)
-        return torch.stack(results, dim=1)
+        return self.wrappers['pi_out'](results)
     
     def setEps(self, eps):
         for agent in self.agents:

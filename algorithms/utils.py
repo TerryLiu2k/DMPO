@@ -32,6 +32,46 @@ def parallelEval(pool, args):
         results.append(result)
     return results
 
+def scatter(k):
+    def _scatter(tensor):
+        """ 
+        for multiple agents aligned along an axis to collect information from their k-hop neighbor
+        input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
+        action is an one-hot embedding
+        """
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+
+        result = torch.zeros((b, n, (1+2*k)*depth), dtype = tensor.dtype, device=tensor.device)
+        for i in range(n):
+            for j in range(i-k, i+k+1):
+                if j<0 or j>=n:
+                    continue
+                start = j-(i-k)
+                result[:, i, start*depth: start*depth+depth] = tensor[:, j]
+        return result
+    if k > 0:
+        return _scatter
+    else:
+        return lambda x: x
+    
+def collect(dic={}):
+    """
+    selects a different scatter radius (more generally, collective operation) for each data key
+    the wrapper inputs raw, no redundancy data from the env
+    outputs a list containing data for each agent
+    """
+    def wrapper(data):
+        for key in data:
+            if isinstance(data[key], torch.Tensor):
+                if key in dic:
+                    data[key] = dic[key](data[key])
+                elif "*" in dic:
+                    data[key] = dic["*"](data[key])
+        return dictSplit(data)
+    return wrapper
+
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
@@ -112,9 +152,8 @@ class TabularLogger(object):
         
     def log(dic, commit=False):
         if commit:
-            print
-   
-STEP = 0
+            print(1)
+            
 class Logger(object):
     """
     A logger wrapper with buffer for visualized logger backends, such as tb or wandb

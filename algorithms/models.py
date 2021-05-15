@@ -1,5 +1,5 @@
 import numpy as np
-import pdb
+import ipdb as pdb
 import itertools
 import scipy.signal
 from gym.spaces import Box, Discrete
@@ -35,11 +35,10 @@ class ParameterizedModel(nn.Module):
         unlike the critic and the actor class, 
         the sizes argument does not include the dim of the state
     """
-    def __init__(self, env_fn, logger, **net_args):
+    def __init__(self, env_fn, observation_dim, logger, **net_args):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env_fn().action_space
-        observation_dim=env_fn().observation_space.shape[0]
         input_dim = net_args['sizes'][0]
         output_dim = net_args['sizes'][-1]
         if isinstance(self.action_space, Discrete):
@@ -56,7 +55,10 @@ class ParameterizedModel(nn.Module):
             with torch.no_grad():
                 embedding = s
                 if isinstance(self.action_space, Discrete):
-                    embedding = embedding + self.action_embedding(a)
+                    action_embedding = self.action_embedding(a)
+                    if not action_embedding.shape == embedding.shape:
+                        # the 
+                        embedding = embedding + self.action_embedding(a)
                 embedding = self.net(embedding)
 
                 state = self.state_head(embedding)

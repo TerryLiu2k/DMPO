@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils import Config, Logger, setSeed
+from ..utils import Config, Logger, setSeed, scatter, collect, listStack
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
@@ -9,8 +9,8 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = False
-neighbor_radius=1
+debug = True
+radius = 1
 
 algo_args = Config()
 if getattr(algo_args, "checkpoint_dir", None) is None:
@@ -35,13 +35,12 @@ if debug:
 algo_args.test_interval = int(1e3)
 algo_args.batch_size=256 # the same as MBPO
 algo_args.n_step=int(1e8)
-algo_args.neighbor_radius = neighbor_radius
 
 p_args=Config()
 p_args.network = MLP
 p_args.activation=torch.nn.ReLU
 p_args.lr=3e-4
-p_args.sizes = [5*(1+2*neighbor_radius), 32, 64] 
+p_args.sizes = [5*(1+2*radius), 32, 64] 
 p_args.update_interval=1/10
 """
  bs=32 interval=4 from rainbow Q
@@ -58,7 +57,7 @@ q_args=Config()
 q_args.network = MLP
 q_args.activation=torch.nn.ReLU
 q_args.lr=3e-4
-q_args.sizes = [5*(1+2*neighbor_radius), 32, 64, 5] # 4 actions, dueling q learning
+q_args.sizes = [5*(1+2*radius), 32, 64, 5] # 4 actions, dueling q learning
 q_args.update_interval=1/20
 # MBPO used 1/40 for continous control tasks
 # 1/20 for invert pendulum
@@ -67,13 +66,30 @@ pi_args=Config()
 pi_args.network = MLP
 pi_args.activation=torch.nn.ReLU
 pi_args.lr=3e-4
-pi_args.sizes = [5*(1+2*neighbor_radius), 32, 64, 4] 
+pi_args.sizes = [5*(1+2*radius), 32, 64, 4] 
 pi_args.update_interval=1/20
+
+pInWrapper = collect({'s': scatter(radius), 'a': scatter(radius), '*': scatter(0)})
+#  (s, a) -> (s1, r, d), the ground truth for supervised training p
+qWrapper = collect({'r':scatter(0), '*':scatter(radius)})
+piInWrapper = collect({'s': scatter(1), 'q': scatter(radius)})
+
+pOutWrapper = listStack
+# (s, r, d)
+piOutWrapper = lambda x: torch.stack(x, dim=1)
+# (a)
+
+wrappers = {'p_in': pInWrapper,
+           'p_out': pOutWrapper,
+           'q': qWrapper,
+           'pi_in': piInWrapper,
+           'pi_out': piOutWrapper}
 
 agent_args=Config()
 def MultiagentMBPO(**agent_args):
     agent_args['agent']=MBPO
     return MultiAgent(**agent_args)
+agent_args.wrappers = wrappers
 agent_args.agent=MultiagentMBPO
 agent_args.n_agent=8
 agent_args.gamma=0.99
@@ -88,9 +104,9 @@ args.save_period=1800 # in seconds
 args.log_period=int(20)
 args.seed=0
 
-q_args.env_fn = env_fn(algo_args.neighbor_radius)
-agent_args.env_fn = env_fn(algo_args.neighbor_radius)
-algo_args.env_fn = env_fn(algo_args.neighbor_radius)
+q_args.env_fn = env_fn
+agent_args.env_fn = env_fn
+algo_args.env_fn = env_fn
 
 agent_args.p_args = p_args
 agent_args.q_args = q_args

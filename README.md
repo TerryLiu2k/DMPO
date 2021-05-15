@@ -28,6 +28,5 @@ Features:
 Interface:
 The state, reward, done should all be numpy arrays
 
-
 Example:
 > python -c "import algorithms.config.SAC_CartPole"
