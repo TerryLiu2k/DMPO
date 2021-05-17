@@ -42,6 +42,7 @@ p_args.activation=torch.nn.ReLU
 p_args.lr=3e-4
 p_args.sizes = [5*(1+2*radius), 32, 64] 
 p_args.update_interval=1/10
+p_args.n_embedding = (1+2*radius)
 """
  bs=32 interval=4 from rainbow Q
  MBPO retrains fram scratch periodically
@@ -61,6 +62,7 @@ q_args.sizes = [5*(1+2*radius), 32, 64, 5] # 4 actions, dueling q learning
 q_args.update_interval=1/20
 # MBPO used 1/40 for continous control tasks
 # 1/20 for invert pendulum
+q_args.n_embedding = (2*radius)
 
 pi_args=Config()
 pi_args.network = MLP
@@ -74,16 +76,9 @@ pInWrapper = collect({'s': scatter(radius), 'a': scatter(radius), '*': scatter(0
 qWrapper = collect({'r':scatter(0), '*':scatter(radius)})
 piInWrapper = collect({'s': scatter(1), 'q': scatter(radius)})
 
-pOutWrapper = listStack
-# (s, r, d)
-piOutWrapper = lambda x: torch.stack(x, dim=1)
-# (a)
-
 wrappers = {'p_in': pInWrapper,
-           'p_out': pOutWrapper,
            'q': qWrapper,
-           'pi_in': piInWrapper,
-           'pi_out': piOutWrapper}
+           'pi_in': piInWrapper}
 
 agent_args=Config()
 def MultiagentMBPO(**agent_args):

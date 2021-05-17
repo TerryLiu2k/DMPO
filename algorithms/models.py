@@ -34,8 +34,9 @@ class ParameterizedModel(nn.Module):
         but it degenrates without a kl hyperparam
         unlike the critic and the actor class, 
         the sizes argument does not include the dim of the state
+        n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env_fn, observation_dim, logger, **net_args):
+    def __init__(self, env_fn, observation_dim, logger, n_embedding=None, **net_args):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env_fn().action_space
@@ -100,8 +101,9 @@ class QCritic(nn.Module):
     Dueling Q, currently only implemented for discrete action space
     if n_embedding > 0, assumes the action space needs embedding
     Notice that the output shape should be 1+action_space.n for discrete dueling Q
+    n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env_fn, **q_args):
+    def __init__(self, env_fn, n_embedding=None, **q_args):
         super().__init__()
         q_net = q_args['network']
         self.action_space=env_fn().action_space

@@ -278,19 +278,34 @@ class MBPO(SAC):
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, wrappers, **agent_args):
         """
-            A meta-agent for Multi Agent RL.
-            It does not expect the env interface is explicitly splited for each agent
-            because in general it is not always possible (e.g. we may want p take k-hop s and predict local s..).
-            The env wrappers that broadcast, scatter and gather s, a, r, d should be registered in this class
-            The wrappers are functions named: 
-                p_in(s, a) -> (s, r, d), p_out (s, r, d)
-                q(s, a, r, s1) or v(s, r, s), (only in, no out)
-                pi_in(s, q), pi_out(a).
-            Notice that the model p has two wrappers, which may wrap s differently.
-            and p_out is a function instead of an env wrapper (since p is not currently wrapped as an env)
-            It is preferred that the env interface contains no redundancy for memory saving,
-            which also requires env-wrapper-after-buffer
-            d should be of shape [batch, n_agent], which may be different for each agent
+            A meta-agent for Multi Agent RL on a factorized environment
+            
+            The shape of s,a,r,d
+                We assume the s, a, r and d from the env are factorized for each agent, of shape [b, n_agent, ...]
+                    The action_space and observation_space of the env should be for single agent
+                    In general, d may be different for each agent
+                
+                In general, the interface may be different for each module, therefore we cannot use only one env wrapper
+                    e.g. p takes k-hop s but pi takes 1-hop
+                
+                The pre-postprocessing, or env wrappers that broadcast, scatter and gather s, a, r, d should be registered in this class
+                The wrappers are functions named: 
+                    p_in(s, a) -> (s1, r, d), p_out (s, r, d)
+                    q(s, a, r, s1) or v(s, r, s), (only in, no out)
+                    pi_in(s, q), pi_out(a).
+                    
+                We make the following simplifying assumptions: 
+                    the outputs of p, q, and pi are local
+                    therefore, the wrappers we need are:
+                        p_in(s, a) -> (s1, r, d)
+                        q(s, a, r, s1) or v(s, r, s), (only in, no out)
+                        pi_in(s, q)
+                
+                The interface shape of p, q and pi that should be explicitly configured:
+                    p: the shape of s, the number of a's
+                    q: the shape of s, the number of non-local a's
+                        since for discrete action, only the non-local a's are embeded
+                    pi: the shape of s
         """
         super().__init__()
         agent_fn = agent_args['agent']
@@ -299,6 +314,10 @@ class MultiAgent(nn.Module):
         for i in range(n_agent):
             self.agents.append(agent_fn(logger = logger.child(f"{i}"), **agent_args))
         self.agents = nn.ModuleList(self.agents)
+        wrappers['p_out'] = listStack
+        # (s, r, d)
+        wrappers['pi_out'] = lambda x: torch.stack(x, dim=1)
+        # (a)
         self.wrappers = wrappers
         for attr in ['ps', 'q1', 'pi']:
             if hasattr(self.agents[0], attr):
