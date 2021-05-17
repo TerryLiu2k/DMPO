@@ -38,6 +38,8 @@ def scatter(k):
         for multiple agents aligned along an axis to collect information from their k-hop neighbor
         input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
         action is an one-hot embedding
+        
+        the first is local
         """
         if len(tensor.shape) == 2: # discrete action
             tensor = tensor.unsqueeze(-1)
@@ -48,7 +50,7 @@ def scatter(k):
             for j in range(i-k, i+k+1):
                 if j<0 or j>=n:
                     continue
-                start = j-(i-k)
+                start = (j-i +1 +2*k)%(1+2*k)
                 result[:, i, start*depth: start*depth+depth] = tensor[:, j]
         return result
     if k > 0:

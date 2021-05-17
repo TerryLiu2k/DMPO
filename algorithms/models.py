@@ -97,7 +97,7 @@ class QCritic(nn.Module):
     Notice that the output shape should be 1+action_space.n for discrete dueling Q
     
     n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
-    only used for decentralized multiagent
+    only used for decentralized multiagent, assumes the first action is local (consistent with gather() in utils)
     """
     def __init__(self, env_fn, n_embedding=0, **q_args):
         super().__init__()
@@ -111,32 +111,32 @@ class QCritic(nn.Module):
             for i in range(n_embedding):
                 self.action_embeddings += [nn.Embedding(self.action_space.n,input_dim)]
        
-    def forward(self, obs, action=None):
+    def forward(self, state, output_distribution, action=None):
+        """
+        action is only used for decentralized multiagent
+        """
         if isinstance(self.action_space, Box):
             q = self.q(torch.cat([obs, action], dim=-1))
         else:
             if not self.n_embedding > 0:
-                a = obs['a']
+                # multiagent
                 embedding = 0
                 for i in range(self.n_embedding):
-                    obs['s'] = obs['s'] + self.action_embeddings[i](a[:, i])
-            q = self.q(obs)
+                    state = state + self.action_embeddings[i](action[:, 1+i])
+                action = action[:, 0]
+            q = self.q(state)
             while len(q.shape) > 2:
                 q = q.squeeze(-1) # HW of size 1 if CNN
             # [b, a+1]
             v = q[:, -1:]
             q = q[:, :-1]
             q = q - q.mean(dim=1, keepdim=True) + v
-            if action is None: 
+            if output_distribution: 
                 # q for all actions
                 return q
-            elif action.dtype == torch.long or action.dtype == torch.int64 or action.dtype == torch.int32:
+            else:
                 # q for a particular action
                 q = torch.gather(input=q,dim=1,index=action.unsqueeze(-1))
-                return q.squeeze(dim=1)
-            else: 
-                # average q for a distribution of actions
-                q = (q*action).sum(dim=-1)
                 return q.squeeze(dim=1)
 
 class CategoricalActor(nn.Module):
