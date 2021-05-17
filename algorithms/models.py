@@ -36,48 +36,42 @@ class ParameterizedModel(nn.Module):
         the sizes argument does not include the dim of the state
         n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env_fn, observation_dim, logger, n_embedding=None, **net_args):
+    def __init__(self, env_fn, logger, n_embedding=1, **net_args):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env_fn().action_space
+        self.observation_space = env_fn().observation_space
         input_dim = net_args['sizes'][0]
         output_dim = net_args['sizes'][-1]
+        self.n_embedding = n_embedding
         if isinstance(self.action_space, Discrete):
-            self.action_embedding = nn.Embedding(self.action_space.n,input_dim)
+            self.action_embeddings = nn.ModuleList()
+            for i in range(n_embedding):
+                self.action_embeddings += [nn.Embedding(self.action_space.n,input_dim)]
         self.net = MLP(**net_args)
-        self.state_head = nn.Linear(output_dim, observation_dim)
+        self.state_head = nn.Linear(output_dim, self.observation_space.shape[0])
         self.reward_head = nn.Linear(output_dim, 1)
         self.done_head = nn.Linear(output_dim, 1)
         self.MSE = nn.MSELoss(reduction='none')
         self.BCE = nn.BCEWithLogitsLoss(reduction='none')
 
     def forward(self, s, a, r=None, s1=None, d=None):
+        embedding = s
+        if isinstance(self.action_space, Discrete):
+            for i in range(self.n_embedding):
+                embedding = embedding + self.action_embeddings[i](a[:, i])
+        embedding = self.net(embedding)
+        state = self.state_head(embedding)
+        reward = self.reward_head(embedding).squeeze(1)
+        
         if r is None: #inference
             with torch.no_grad():
-                embedding = s
-                if isinstance(self.action_space, Discrete):
-                    action_embedding = self.action_embedding(a)
-                    if not action_embedding.shape == embedding.shape:
-                        # the 
-                        embedding = embedding + self.action_embedding(a)
-                embedding = self.net(embedding)
-
-                state = self.state_head(embedding)
-                reward = self.reward_head(embedding).squeeze(1)
                 done = torch.sigmoid(self.done_head(embedding))
                 done = torch.cat([1-done, done], dim = 1)
                 done = Categorical(done).sample() # [b]
                 return  reward, state, done
         else: # training
-            embedding = s
-            if isinstance(self.action_space, Discrete):
-                embedding = embedding + self.action_embedding(a)
-            embedding = self.net(embedding)
-
-            state = self.state_head(embedding)
-            reward = self.reward_head(embedding).squeeze(1)
             done = self.done_head(embedding).squeeze(1)
-            
             state_loss = self.MSE(state, s1).mean(dim = 1)
             state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True)).mean()
             
@@ -101,18 +95,31 @@ class QCritic(nn.Module):
     Dueling Q, currently only implemented for discrete action space
     if n_embedding > 0, assumes the action space needs embedding
     Notice that the output shape should be 1+action_space.n for discrete dueling Q
+    
     n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
+    only used for decentralized multiagent
     """
-    def __init__(self, env_fn, n_embedding=None, **q_args):
+    def __init__(self, env_fn, n_embedding=0, **q_args):
         super().__init__()
         q_net = q_args['network']
         self.action_space=env_fn().action_space
         self.q = q_net(**q_args)
+        self.n_embedding = n_embedding
+        input_dim = q_args['sizes'][0]
+        if not n_embedding is 0:
+            self.action_embeddings = nn.ModuleList()
+            for i in range(n_embedding):
+                self.action_embeddings += [nn.Embedding(self.action_space.n,input_dim)]
        
     def forward(self, obs, action=None):
         if isinstance(self.action_space, Box):
             q = self.q(torch.cat([obs, action], dim=-1))
         else:
+            if not self.n_embedding > 0:
+                a = obs['a']
+                embedding = 0
+                for i in range(self.n_embedding):
+                    obs['s'] = obs['s'] + self.action_embeddings[i](a[:, i])
             q = self.q(obs)
             while len(q.shape) > 2:
                 q = q.squeeze(-1) # HW of size 1 if CNN

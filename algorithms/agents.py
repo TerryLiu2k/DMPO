@@ -300,6 +300,8 @@ class MultiAgent(nn.Module):
                         p_in(s, a) -> (s1, r, d)
                         q(s, a, r, s1) or v(s, r, s), (only in, no out)
                         pi_in(s, q)
+                    Notice the a used by p during roll, and the q used by pi during updatePi 
+                    The two functions cannot be decomposed into independent evaluations and require overloading the single agent functions
                 
                 The interface shape of p, q and pi that should be explicitly configured:
                     p: the shape of s, the number of a's
@@ -328,24 +330,33 @@ class MultiAgent(nn.Module):
     def roll(self, **data):
         data['func'] = 'roll'
         data['agent'] = self.agents
-        pdb.set_trace()
         data = self.wrappers['p_in'](data)
-        results = parallelEval(self.pool, inputs)
+        results = parallelEval(self.pool, data)
         return self.wrappers['p_out'](results)
+    
+        p = self.ps[np.random.randint(self.n_p)]
+        
+        with torch.no_grad():
+            if isinstance(self.action_space, Discrete):
+                a = self.act(s, deterministic=False)
+                r, s1, d = p(s, a)
+            else:
+                return None
+        return  r, s1, d
     
     def updateP(self, **data):
         pdb.set_trace()
         data['func'] = 'updateP'
         data['agent'] = self.agents
         data = self.wrappers['p_in'](data)
-        results = parallelEval(self.pool, inputs)
+        results = parallelEval(self.pool, data)
         
     def updateQ(self, **data):
         pdb.set_trace()
         data['func'] = 'updateQ'
         data['agent'] = self.agents
         data = self.wrappers['q'](data)
-        results = parallelEval(self.pool, inputs)
+        results = parallelEval(self.pool, data)
 
     def updatePi(self, **data):
         """
@@ -355,12 +366,12 @@ class MultiAgent(nn.Module):
         data['func'] = 'updatePi'
         data['agent'] = self.agents
         data = self.wrappers['pi_in'](data)
-        results = parallelEval(self.pool, inputs)
+        results = parallelEval(self.pool, data)
 
     def act(self, S, deterministic=False):
-        inputs = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents}
-        inputs = self.wrappers['pi_in'](inputs)
-        results = parallelEval(self.pool, inputs)
+        data = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents}
+        data = self.wrappers['pi_in'](data)
+        results = parallelEval(self.pool, data)
         return self.wrappers['pi_out'](results)
     
     def setEps(self, eps):
