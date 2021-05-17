@@ -263,13 +263,16 @@ class MBPO(SAC):
         self.p_optimizer.step()
         return None
     
-    def roll(self, s, a):
-        """ batched """
+    def roll(self, s, a=None):
+        """ batched,
+            a is None as long as single agent (multiagent this causes computing .act() redundantly)
+        """
         p = self.ps[np.random.randint(self.n_p)]
         
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
-                a = self.act(s, deterministic=False)
+                if a is None:
+                    a = self.act(s, deterministic=False)
                 r, s1, d = p(s, a)
             else:
                 return None
@@ -328,21 +331,14 @@ class MultiAgent(nn.Module):
         # removed agent parallelism for it does not yield any performance gain
         
     def roll(self, **data):
+        s = data['s']
+        a = self.act(s, deterministic=False)
+        data['a'] = a
         data['func'] = 'roll'
         data['agent'] = self.agents
         data = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, data)
         return self.wrappers['p_out'](results)
-    
-        p = self.ps[np.random.randint(self.n_p)]
-        
-        with torch.no_grad():
-            if isinstance(self.action_space, Discrete):
-                a = self.act(s, deterministic=False)
-                r, s1, d = p(s, a)
-            else:
-                return None
-        return  r, s1, d
     
     def updateP(self, **data):
         pdb.set_trace()
@@ -367,6 +363,34 @@ class MultiAgent(nn.Module):
         data['agent'] = self.agents
         data = self.wrappers['pi_in'](data)
         results = parallelEval(self.pool, data)
+        
+        if isinstance(self.action_space, Discrete):
+            pi = self.pi(s) + 1e-5 # avoid nan
+            logp = torch.log(pi/pi.sum(dim=1, keepdim=True))
+            q1 = self.q1(s)
+            q2 = self.q2(s)
+            q = torch.min(q1, q2)
+            q = q - self.alpha * logp
+            optimum = q.max(dim=1, keepdim=True)[0].detach()
+            regret = optimum - (pi*q).sum(dim=1)
+            loss = regret.mean()
+            entropy = -(pi*logp).sum(dim=1).mean(dim=0)
+            self.logger.log(pi_entropy=entropy, pi_regret=loss)
+        else:
+            action, logp = self.pi(s)
+            q1 = self.q1(s, action)
+            q2 = self.q2(s, action)
+            q = torch.min(q1, q2)
+            q = q - self.alpha * logp
+            loss = (-q).mean()
+            self.logger.log(logp=logp, pi_reward=q)
+            
+        self.pi_optimizer.zero_grad()
+        if not torch.isnan(loss).any():
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(parameters=self.pi.parameters(), max_norm=5, norm_type=2)
+            self.pi_optimizer.step()
+            
 
     def act(self, S, deterministic=False):
         data = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents}

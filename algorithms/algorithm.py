@@ -221,7 +221,7 @@ class RL(object):
             s = batch['s']
             a = self.agent.act(s)
             for i in range(self.branch):
-                r, s1, d = self.agent.roll(s=s, a=a)
+                r, s1, d = self.agent.roll(s=s)
                 buffer.storeBatch(s, a, r, s1, d)
                 if len(buffer.data) >= buffer.max_size:
                     break
