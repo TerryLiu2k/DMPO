@@ -4,7 +4,7 @@ import random
 import numpy as np
 import torch
 import wandb
-import pdb
+import ipdb as pdb
 import time
 import dill # overrides multiprocessing
 
@@ -24,6 +24,9 @@ def _parallelEval(pool, args):
     return list(pool.map(_runDillEncoded, payload, chunksize=1))
 
 def parallelEval(pool, args):
+    """
+    expects a list of dicts
+    """
     results = []
     for i, arg in enumerate(args):
         agent = arg.pop('agent')
@@ -32,8 +35,8 @@ def parallelEval(pool, args):
         results.append(result)
     return results
 
-def scatter(k):
-    def _scatter(tensor):
+def gather(k):
+    def _gather(tensor):
         """ 
         for multiple agents aligned along an axis to collect information from their k-hop neighbor
         input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
@@ -54,13 +57,38 @@ def scatter(k):
                 result[:, i, start*depth: start*depth+depth] = tensor[:, j]
         return result
     if k > 0:
-        return _scatter
+        return _gather
+    else:
+        return lambda x: x
+    
+def reduce(k):
+    def _reduce(tensor):
+        """ 
+        for multiple agents aligned along an axis to collect information from their k-hop neighbor
+        input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
+        action is an one-hot embedding
+        
+        the first is local
+        """
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+
+        result = torch.zeros((b, n, depth), dtype = tensor.dtype, device=tensor.device)
+        for i in range(n):
+            for j in range(i-k, i+k+1):
+                if j<0 or j>=n:
+                    continue
+                result[:, i] += tensor[:, j]
+        return result
+    if k > 0:
+        return _reduce
     else:
         return lambda x: x
     
 def collect(dic={}):
     """
-    selects a different scatter radius (more generally, collective operation) for each data key
+    selects a different gather radius (more generally, collective operation) for each data key
     the wrapper inputs raw, no redundancy data from the env
     outputs a list containing data for each agent
     """
@@ -95,13 +123,15 @@ def dictSelect(dic, idx, dim=1):
 
 def dictSplit(dic, dim=1):
     """
-        scatters every tensor and modulelist
+        gathers every tensor and modulelist
         others are broadcasted
     """
     results = []
     assert dim == 0 or dim ==1
-    sample = dic[list(iter(dic.keys()))[0]]
-    length = sample.shape[dim]
+    for key in dic:
+        if isinstance(dic[key], torch.Tensor):
+            length = dic[key].shape[dim]
+            break
     for i in range(length):
         tmp = dictSelect(dic, i, dim)
         results.append(tmp)

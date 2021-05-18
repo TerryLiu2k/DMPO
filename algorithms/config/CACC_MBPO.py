@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils import Config, Logger, setSeed, scatter, collect, listStack
+from ..utils import Config, Logger, setSeed, gather, collect, listStack, reduce
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
@@ -71,10 +71,10 @@ pi_args.lr=3e-4
 pi_args.sizes = [5*(1+2*radius), 32, 64, 4] 
 pi_args.update_interval=1/20
 
-pInWrapper = collect({'s': scatter(radius), 'a': scatter(radius), '*': scatter(0)})
+pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
 #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-qWrapper = collect({'r':scatter(0), 'd':scatter(0), '*':scatter(radius)})
-piInWrapper = collect({'s': scatter(1), 'q': scatter(radius)})
+qWrapper = collect({'r':gather(0), 'd':gather(0), '*':gather(radius)})
+piInWrapper = collect({'s': gather(1), 'q': reduce(radius)})
 
 wrappers = {'p_in': pInWrapper,
            'q': qWrapper,
