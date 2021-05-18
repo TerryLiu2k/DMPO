@@ -9,20 +9,19 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = True
-radius = 1
+debug = False
+radius = 2
+radius_pi = 2
 
 algo_args = Config()
-if getattr(algo_args, "checkpoint_dir", None) is None:
-    algo_args.n_warmup=int(5e3)
-else:
-    algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
+algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
 """
  rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
  bs256lr3e-4, it takes 2e4updates
  for the model on CartPole to learn done...
 
  Only 3e5 samples are needed for parameterized input continous motion control
+ Only 3e4 needed for CACC
 """
 algo_args.replay_size=int(1e5)
 algo_args.max_ep_len=600
@@ -50,7 +49,7 @@ p_args.n_embedding = (1+2*radius)
 p_args.n_p=7 # ensemble
 p_args.refresh_interval=int(1e3) # refreshes the model buffer
 # ideally rollouts should be used only once
-p_args.branch=400
+p_args.branch=40
 p_args.roll_length=1 # length > 1 not implemented yet
 
 q_args=Config()
@@ -67,13 +66,13 @@ pi_args=Config()
 pi_args.network = MLP
 pi_args.activation=torch.nn.ReLU
 pi_args.lr=3e-4
-pi_args.sizes = [5*(1+2*radius), 32, 64, 4] 
+pi_args.sizes = [5*(1+2*radius_pi), 32, 64, 4] 
 pi_args.update_interval=1/20
 
 pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
 #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-qInWrapper = collect({'r':gather(0), 'd':gather(0), '*':gather(radius)})
-piInWrapper = collect({'s': gather(1), 'q': reduce(radius)})
+qInWrapper = collect({'r':gather(0), 'd':gather(0), 's1': gather(radius), '*':gather(radius)})
+piInWrapper = collect({'s': gather(radius_pi), 'q': reduce(radius)})
 
 wrappers = {'p_in': pInWrapper,
            'q_in': qInWrapper,

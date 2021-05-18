@@ -387,9 +387,6 @@ class MultiAgent(nn.Module):
         return results
         
     def updatePi(self, **data):
-        """
-        TODO: modify this
-        """
         q = self._evalQ(**data)
         # a list of qs
         data = {'q': q,

@@ -11,8 +11,8 @@ import os
 import seaborn as sns
 import time
 from collections import deque
-from envs.atsc_env import PhaseMap, PhaseSet, TrafficSimulator
-from envs.real_net_data.build_file import gen_rou_file
+from .atsc_env import PhaseMap, PhaseSet, TrafficSimulator
+from .real_net_data.build_file import gen_rou_file
 
 sns.set_color_codes()
 

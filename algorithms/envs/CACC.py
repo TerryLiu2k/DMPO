@@ -47,8 +47,10 @@ class CACCWrapper(gym.Wrapper):
         """
         collision yields -1000*8, while the initial reward is -170, -1600 before collision
         I am worried if -8000 is a good solution compared with -170*(1/(1-gamma))...
+        
+        gets 1 if locally perfect, -4 and done if collision
         """
-        return state, (reward+2000)/2000, done, None
+        return state, (reward+200)/200, done, None
         
 
 def CACC_catchup():
