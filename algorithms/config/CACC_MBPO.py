@@ -73,7 +73,7 @@ pi_args.update_interval=1/20
 
 pInWrapper = collect({'s': scatter(radius), 'a': scatter(radius), '*': scatter(0)})
 #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-qWrapper = collect({'r':scatter(0), '*':scatter(radius)})
+qWrapper = collect({'r':scatter(0), 'd':scatter(0), '*':scatter(radius)})
 piInWrapper = collect({'s': scatter(1), 'q': scatter(radius)})
 
 wrappers = {'p_in': pInWrapper,

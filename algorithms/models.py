@@ -118,7 +118,7 @@ class QCritic(nn.Module):
         if isinstance(self.action_space, Box):
             q = self.q(torch.cat([obs, action], dim=-1))
         else:
-            if not self.n_embedding > 0:
+            if self.n_embedding > 0:
                 # multiagent
                 embedding = 0
                 for i in range(self.n_embedding):
@@ -136,7 +136,7 @@ class QCritic(nn.Module):
                 return q
             else:
                 # q for a particular action
-                q = torch.gather(input=q,dim=1,index=action.unsqueeze(-1))
+                q = torch.gather(input=q,dim=1,index=action.unsqueeze(-1))  
                 return q.squeeze(dim=1)
 
 class CategoricalActor(nn.Module):
