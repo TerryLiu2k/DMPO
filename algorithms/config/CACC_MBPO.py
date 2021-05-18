@@ -24,17 +24,16 @@ else:
 
  Only 3e5 samples are needed for parameterized input continous motion control
 """
-if debug:
-    algo_args.n_warmup=1
 algo_args.replay_size=int(1e5)
-if debug:
-    algo_args.replay_size=1
 algo_args.max_ep_len=600
-if debug:
-    algo_args.max_ep_len=2
 algo_args.test_interval = int(1e3)
 algo_args.batch_size=256 # the same as MBPO
 algo_args.n_step=int(1e8)
+if debug:
+    algo_args.batch_size = 4
+    algo_args.max_ep_len=2
+    algo_args.replay_size=1
+    algo_args.n_warmup=1
 
 p_args=Config()
 p_args.network = MLP
@@ -73,11 +72,11 @@ pi_args.update_interval=1/20
 
 pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
 #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-qWrapper = collect({'r':gather(0), 'd':gather(0), '*':gather(radius)})
+qInWrapper = collect({'r':gather(0), 'd':gather(0), '*':gather(radius)})
 piInWrapper = collect({'s': gather(1), 'q': reduce(radius)})
 
 wrappers = {'p_in': pInWrapper,
-           'q': qWrapper,
+           'q_in': qInWrapper,
            'pi_in': piInWrapper}
 
 agent_args=Config()

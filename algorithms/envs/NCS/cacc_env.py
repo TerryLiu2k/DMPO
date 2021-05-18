@@ -240,8 +240,6 @@ class CACCEnv:
             done = True
         if self.t == self.T:
             done = True
-        if self.coop_gamma < 0:
-            reward = global_reward
         if self.is_record:
             self._log_control_data(action, global_reward)
         if done and (self.is_record):

@@ -360,7 +360,6 @@ class MultiAgent(nn.Module):
         return self.wrappers['p_out'](results)
     
     def updateP(self, **data):
-        pdb.set_trace()
         data['func'] = 'updateP'
         data['agent'] = self.agents
         data = self.wrappers['p_in'](data)
@@ -373,7 +372,7 @@ class MultiAgent(nn.Module):
         data['func'] = 'updateQ'
         data['agent'] = self.agents
         data['a1'] = self.act(data['s1'], deterministic=False)
-        data = self.wrappers['q'](data)
+        data = self.wrappers['q_in'](data)
         results = parallelEval(self.pool, data)
         
     def _evalQ(self, **data):
@@ -382,7 +381,7 @@ class MultiAgent(nn.Module):
                  's': data['s'], 
                  'a': data['a'],
                  'func': '_evalQ'}
-        data = self.wrappers['q'](data)
+        data = self.wrappers['q_in'](data)
         results = parallelEval(self.pool, data)
         results = self.wrappers['q_out'](results)
         return results

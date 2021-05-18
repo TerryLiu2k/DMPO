@@ -73,10 +73,10 @@ class ParameterizedModel(nn.Module):
         else: # training
             done = self.done_head(embedding).squeeze(1)
             state_loss = self.MSE(state, s1).mean(dim = 1)
-            state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True)).mean()
+            state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True).expand(*s1.shape)).mean()
             
             reward_loss = self.MSE(reward, r)
-            reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True)).mean()
+            reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True).expand(*reward.shape)).mean()
             
             done_loss = self.BCE(done, d)
             done = done > 0
