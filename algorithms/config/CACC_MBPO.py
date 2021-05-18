@@ -10,8 +10,8 @@ from ..envs.CACC import env_fn
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
 debug = False
-radius = 2
-radius_pi = 2
+radius = 1
+radius_pi = 1
 
 algo_args = Config()
 algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer

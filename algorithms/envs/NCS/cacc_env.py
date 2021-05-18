@@ -17,7 +17,7 @@ class CACCEnv:
     def __init__(self, config):
         self._load_config(config)
         self.ovm = OVMCarFollowing(self.h_s, self.h_g, self.v_max)
-        self.train_mode = True
+        self.train_mode = False
         self.cur_episode = 0
         self.is_record = False
         self.action_space = Discrete(4)
@@ -56,7 +56,31 @@ class CACCEnv:
             c_rewards = -COLLISION_WT * (np.minimum(self.hs_cur - COLLISION_HEADWAY, 0)) ** 2
         else:
             c_rewards = 0
-        return h_rewards + v_rewards + u_rewards + c_rewards
+        return h_rewards + v_rewards + u_rewards 
+    
+    def state2Reward(self, state):
+        """
+            state of shape [b, 8, 5] to reward of shape [b, 8]
+        """
+        v = v_state*self.v_star + self.v_star
+        u = u_state*self.u_max
+        h = h_state * sekf.h_star + self.h_star
+        v0 = [self.v0s[self.t]]*v.shape[0]
+        v0 = torch.tensor(v0).unsqueeze(1)
+        # [b, 1]
+        v_lead = torch.cat([v0, v[:, 1:]], dim=1)
+        h = h - self.dt*(vlead - v)
+
+        h_rewards = -(h - self.h_star) ** 2
+        v_rewards = -self.a * (v - self.v_star) ** 2
+        u_rewards = -self.b * (u) ** 2
+
+        collision =  torch.min(h, dim=1) < self.h_min
+        rewards = h_rewards + v_rewards + u_rewards
+        
+        rewards = (1-collision)*rewards + (collision *-self.G * np.ones(self.n_agent))
+
+        return rewards
 
     def _get_veh_state(self, i_veh):
         v_lead = self.vs_cur[i_veh-1] if i_veh else self.v0s[self.t]
