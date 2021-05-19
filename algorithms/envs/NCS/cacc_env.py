@@ -2,7 +2,9 @@ import configparser
 import logging
 import numpy as np
 import pandas as pd
+import torch
 import gym
+import ipdb as pdb
 from gym.spaces import Box, Discrete
 # import matplotlib.pyplot as plt
 # import seaborn as sns
@@ -56,31 +58,42 @@ class CACCEnv:
             c_rewards = -COLLISION_WT * (np.minimum(self.hs_cur - COLLISION_HEADWAY, 0)) ** 2
         else:
             c_rewards = 0
-        return h_rewards + v_rewards + u_rewards 
+        rewards = h_rewards + v_rewards + u_rewards 
+       # rewards = v_rewards
+        return rewards
     
     def state2Reward(self, state):
         """
             state of shape [b, 8, 5] to reward of shape [b, 8]
         """
+        device = state.device
+        state = state.detach().cpu()
+        v_state = state[:, :, 0]
+        h_state = state[:, :, 3]
+        u_state = state[:, :, 4]
+        
         v = v_state*self.v_star + self.v_star
         u = u_state*self.u_max
-        h = h_state * sekf.h_star + self.h_star
+        h = h_state * self.h_star + self.h_star
         v0 = [self.v0s[self.t]]*v.shape[0]
         v0 = torch.tensor(v0).unsqueeze(1)
         # [b, 1]
-        v_lead = torch.cat([v0, v[:, 1:]], dim=1)
+        vlead = torch.cat([v0, v[:, :-1]], dim=1)
         h = h - self.dt*(vlead - v)
 
         h_rewards = -(h - self.h_star) ** 2
         v_rewards = -self.a * (v - self.v_star) ** 2
         u_rewards = -self.b * (u) ** 2
 
-        collision =  torch.min(h, dim=1) < self.h_min
+        collision =  torch.min(h, dim=1, keepdim=True)[0] < self.h_min
+        collision = collision.float()
         rewards = h_rewards + v_rewards + u_rewards
-        
+        #rewards = v_rewards
         rewards = (1-collision)*rewards + (collision *-self.G * np.ones(self.n_agent))
 
-        return rewards
+        rewards = rewards.to(device)
+        collision = collision.to(device)
+        return rewards, collision.expand(*rewards.shape) # ignore done because of max-step 
 
     def _get_veh_state(self, i_veh):
         v_lead = self.vs_cur[i_veh-1] if i_veh else self.v0s[self.t]

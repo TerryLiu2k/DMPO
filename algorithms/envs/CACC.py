@@ -38,6 +38,10 @@ class CACCWrapper(gym.Wrapper):
         self.state = state
         return state
     
+    def state2Reward(self, state):
+        reward, done =  self.env.state2Reward(state)
+        return (reward+200)/200, done
+    
     def step(self, action):
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)

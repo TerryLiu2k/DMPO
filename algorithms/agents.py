@@ -120,13 +120,16 @@ class QLearning(nn.Module):
     
 class SAC(QLearning):
     """ Actor Critic (Q function) """
-    def __init__(self, logger, env_fn, q_args, pi_args, alpha, gamma, target_sync_rate, **kwargs):
+    def __init__(self, logger, env_fn, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs):
         """
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
         self.logger = logger.child("SAC")
-        self.alpha = alpha
+        
+        self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
+        self.target_entropy = target_entropy
+        
         self.eps = 1 # linearly decrease to 0,
         #switching from 1 to 0 in a sudden causes nan on some tasks
         self.action_space = env_fn().action_space
@@ -134,7 +137,12 @@ class SAC(QLearning):
             self.pi = SquashedGaussianActor(**pi_args._toDict())
         else:
             self.pi = CategoricalActor(**pi_args._toDict())
-        self.pi_optimizer = Adam(self.pi.parameters(), lr=pi_args.lr)
+                                
+        if not target_entropy is None:
+            pi_params = itertools.chain(self.pi.parameters(), [self.alpha])
+        else:
+            pi_params = self.pi.parameters()                   
+        self.pi_optimizer = Adam(pi_params, lr=pi_args.lr)
 
     def act(self, s, deterministic=False):
         """
@@ -182,7 +190,10 @@ class SAC(QLearning):
             regret = optimum - (pi*q).sum(dim=1)
             loss = regret.mean()
             entropy = -(pi*logp).sum(dim=1).mean(dim=0)
-            self.logger.log(pi_entropy=entropy, pi_regret=loss)
+            if not self.target_entropy is None:
+                alpha_loss = (entropy.detach()-self.target_entropy)*self.alpha
+                loss = loss + alpha_loss
+            self.logger.log(pi_entropy=entropy, pi_regret=loss, alpha=self.alpha)
         else:
             action, logp = self.pi(s)
             q1 = self.q1(s, action)
@@ -250,11 +261,11 @@ class SAC(QLearning):
                         p_targ.data.add_(self.target_sync_rate * p.data)
         
 class MBPO(SAC):
-    def __init__(self, logger, env_fn, p_args, q_args, pi_args, alpha, gamma, target_sync_rate, **kwargs):
+    def __init__(self, env_fn, logger, p_args, **kwargs):
         """
             q_net is the network class
         """
-        super().__init__(logger, env_fn, q_args, pi_args, alpha, gamma, target_sync_rate, **kwargs)
+        super().__init__(logger, env_fn, **kwargs)
         logger = logger.child("MBPO")
         self.logger = logger
         self.n_p = p_args.n_p
@@ -269,12 +280,13 @@ class MBPO(SAC):
     def updateP(self, s, a, r, s1, d):
         loss = 0
         for i in range(self.n_p):
-            loss = loss + self.ps[i](s, a, r, s1, d)
+            loss, r_, s1_, d_ =  self.ps[i](s, a, r, s1, d)
+            loss = loss + loss
         self.p_optimizer.zero_grad()
         loss.sum().backward()
         torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
         self.p_optimizer.step()
-        return None
+        return r_, s1_, d_
     
     def roll(self, s, a=None):
         """ batched,
@@ -293,7 +305,7 @@ class MBPO(SAC):
         return  r, s1, d
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, wrappers, **agent_args):
+    def __init__(self, n_agent, env_fn, wrappers, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -330,9 +342,12 @@ class MultiAgent(nn.Module):
         super().__init__()
         agent_fn = agent_args['agent']
         logger = agent_args.pop('logger')
+        self.logger = logger
+        self.env= env_fn()
+        self.env.reset()
         self.agents = []
         for i in range(n_agent):
-            self.agents.append(agent_fn(logger = logger.child(f"{i}"), **agent_args))
+            self.agents.append(agent_fn(logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args))
         self.agents = nn.ModuleList(self.agents)
         wrappers['p_out'] = listStack
         # (s, r, d)
@@ -357,13 +372,26 @@ class MultiAgent(nn.Module):
         data['agent'] = self.agents
         data = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, data)
-        return self.wrappers['p_out'](results)
+        results = self.wrappers['p_out'](results) # r, s1, d
+        if hasattr(self.env, 'state2Reward'):
+            s1 = results[1]
+            reward, done = self.env.state2Reward(s1)
+            return reward, s1, done
+        return results
     
     def updateP(self, **data):
         data['func'] = 'updateP'
         data['agent'] = self.agents
-        data = self.wrappers['p_in'](data)
-        results = parallelEval(self.pool, data)
+        reward = data['r']
+        data_split = self.wrappers['p_in'](data)
+        results = parallelEval(self.pool, data_split)
+        results = self.wrappers['p_out'](results)
+        if hasattr(self.env, 'state2Reward'):
+            reward_, done_ = self.env.state2Reward(results[0])
+            reward_loss = (reward - reward_)**2
+            reward_var = (reward - reward.mean(dim=0, keepdim=True))**2
+            self.logger.log(reward_error = reward_loss.mean(), 
+                           reward_var = reward_var.mean())
         
     def updateQ(self, **data):
         """

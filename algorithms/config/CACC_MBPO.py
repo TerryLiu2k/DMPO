@@ -1,4 +1,5 @@
 import torch
+import ipdb as pdb
 import numpy as np
 from ..utils import Config, Logger, setSeed, gather, collect, listStack, reduce
 from ..models import MLP
@@ -9,7 +10,7 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = False
+debug = True
 radius = 1
 radius_pi = 1
 
@@ -47,10 +48,11 @@ p_args.n_embedding = (1+2*radius)
  in principle this can be arbitrarily frequent
 """
 p_args.n_p=7 # ensemble
-p_args.refresh_interval=int(1e3) # refreshes the model buffer
+p_args.refresh_interval=int(1e2) # refreshes the model buffer
 # ideally rollouts should be used only once
 p_args.branch=40
 p_args.roll_length=1 # length > 1 not implemented yet
+p_args.to_predict = 's'
 
 q_args=Config()
 q_args.network = MLP
@@ -86,7 +88,9 @@ agent_args.wrappers = wrappers
 agent_args.agent=MultiagentMBPO
 agent_args.n_agent=8
 agent_args.gamma=0.99
-agent_args.alpha=0.2 *0.2
+agent_args.alpha=0.2
+agent_args.target_entropy = 0.2
+# 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
 agent_args.target_sync_rate=5e-3
 # called tau in MBPO
 # sync rate per update = update interval/target sync interval

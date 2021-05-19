@@ -230,7 +230,6 @@ class RL(object):
     def step(self):
         env = self.env
         state = env.state
-        self.logger.log(interaction=None)
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
         eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
         self.agent.setEps(np.clip(eps, 0, 1))
@@ -239,6 +238,7 @@ class RL(object):
         # Step the env
         s1, r, d, _ = env.step(a)
         self.episode_reward += r
+        self.logger.log(interaction=None)
         self.episode_len += 1
         if self.episode_len == self.max_ep_len:
             """

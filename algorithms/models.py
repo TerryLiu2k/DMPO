@@ -36,7 +36,7 @@ class ParameterizedModel(nn.Module):
         the sizes argument does not include the dim of the state
         n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env_fn, logger, n_embedding=1, **net_args):
+    def __init__(self, env_fn, logger, n_embedding=1, to_predict="srd", **net_args):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env_fn().action_space
@@ -54,6 +54,7 @@ class ParameterizedModel(nn.Module):
         self.done_head = nn.Linear(output_dim, 1)
         self.MSE = nn.MSELoss(reduction='none')
         self.BCE = nn.BCEWithLogitsLoss(reduction='none')
+        self.to_predict = to_predict
 
     def forward(self, s, a, r=None, s1=None, d=None):
         embedding = s
@@ -72,23 +73,34 @@ class ParameterizedModel(nn.Module):
                 return  reward, state, done
         else: # training
             done = self.done_head(embedding).squeeze(1)
-            state_loss = self.MSE(state, s1).mean(dim = 1)
-            state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True).expand(*s1.shape)).mean()
-            
-            reward_loss = self.MSE(reward, r)
-            reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True).expand(*reward.shape)).mean()
-            
-            done_loss = self.BCE(done, d)
-            done = done > 0
+            state_loss = self.MSE(state, s1)
+            state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True).expand(*s1.shape))
+            # each state dim may be of different magnitude, therefore do not average over dim first
 
-            done_true_positive = (done*d).mean()
-            d = d.mean()
+            loss = state_loss.mean(dim=1)
+            rel_state_loss=state_loss.mean(dim=0)/state_var.mean(dim=0)
+            rel_state_loss = rel_state_loss.mean()
+            self.logger.log(rel_state_loss=rel_state_loss)
             
-            self.logger.log(rel_state_loss=state_loss.mean()/state_var,
-                            reward_loss=reward_loss,
-                            reward_var=reward_var)
-            self.logger.log(done_loss=done_loss,done_true_positive=done_true_positive, done=d, rolling=100)
-            return state_loss+reward_loss+10*done_loss
+            if 'r' in self.to_predict:
+                reward_loss = self.MSE(reward, r)
+                reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True).expand(*reward.shape)).mean()
+
+                self.logger.log(reward_loss=reward_loss,
+                                reward_var=reward_var,
+                                reward = r)
+                loss = loss + reward_loss
+                
+            if 'd' in self.to_predict:
+                done_loss = self.BCE(done, d)
+                done = done > 0
+
+                done_true_positive = (done*d).mean()
+                d = d.mean()
+                self.logger.log(done_loss=done_loss,done_true_positive=done_true_positive, done=d, rolling=100)
+                loss = loss + 10* done_loss
+
+            return loss, state.detach(), reward.detach(), done.detach()
         
 class QCritic(nn.Module):
     """
@@ -148,12 +160,19 @@ class CategoricalActor(nn.Module):
         self.softmax = nn.Softmax(dim=1)
         net_fn = net_args['network']
         self.network = net_fn(**net_args)
+        self.eps = 1e-5
+        # if pi becomes truely deterministic (e.g. SAC alpha = 0)
+        # q will become NaN, use eps to increase stability 
+        # and make SAC compatible with "Hard"ActorCritic
     
     def forward(self, obs):
         logit = self.network(obs)
         while len(logit.shape) > 2:
             logit = logit.squeeze(-1) # HW of size 1 if CNN
-        return self.softmax(logit)
+        probs = self.softmax(logit)
+        probs = (probs + self.eps)
+        probs = probs/probs.sum(dim=-1, keepdim=True)
+        return probs
     
 class RegressionActor(nn.Module):
     """
