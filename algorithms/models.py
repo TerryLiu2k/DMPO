@@ -75,13 +75,13 @@ class ParameterizedModel(nn.Module):
             done = self.done_head(embedding).squeeze(1)
             state_loss = self.MSE(state, s1)
             state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True).expand(*s1.shape))
-            # each state dim may be of different magnitude, therefore do not average over dim first
-
-            loss = state_loss.mean(dim=1)
-            rel_state_loss=state_loss.mean(dim=0)/state_var.mean(dim=0)
-            rel_state_loss = rel_state_loss.mean()
+            # we assume the components of state are of similar magnitude
+            rel_state_loss = state_loss.mean()/state_var.mean()
+            state_loss = state_loss.mean(dim=1)
+            
             self.logger.log(rel_state_loss=rel_state_loss)
             
+            loss = state_loss
             if 'r' in self.to_predict:
                 reward_loss = self.MSE(reward, r)
                 reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True).expand(*reward.shape)).mean()
@@ -100,7 +100,7 @@ class ParameterizedModel(nn.Module):
                 self.logger.log(done_loss=done_loss,done_true_positive=done_true_positive, done=d, rolling=100)
                 loss = loss + 10* done_loss
 
-            return loss, state.detach(), reward.detach(), done.detach()
+            return loss, reward.detach(), state.detach(), done.detach()
         
 class QCritic(nn.Module):
     """

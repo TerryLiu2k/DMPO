@@ -185,7 +185,7 @@ class SAC(QLearning):
                 q1 = self.q1(s)
                 q2 = self.q2(s)
                 q = torch.min(q1, q2)
-            q = q - self.alpha * logp
+            q = q - self.alpha.detach() * logp
             optimum = q.max(dim=1, keepdim=True)[0].detach()
             regret = optimum - (pi*q).sum(dim=1)
             loss = regret.mean()
@@ -199,7 +199,7 @@ class SAC(QLearning):
             q1 = self.q1(s, action)
             q2 = self.q2(s, action)
             q = torch.min(q1, q2)
-            q = q - self.alpha * logp
+            q = q - self.alpha.detach() * logp
             loss = (-q).mean()
             self.logger.log(logp=logp, pi_reward=q)
             
@@ -208,6 +208,8 @@ class SAC(QLearning):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(parameters=self.pi.parameters(), max_norm=5, norm_type=2)
             self.pi_optimizer.step()
+            if self.alpha < 0:
+                self.alpha.data = torch.tensor(0, dtype=torch.float).to(self.alpha.device)
 
     
     def updateQ(self, s, a, r, s1, d, a1=None):
@@ -231,7 +233,7 @@ class SAC(QLearning):
                 loga1 = torch.log(p_a1)
                 q1_pi_targ = self.q1_target(s1, True, a1) 
                 q2_pi_targ = self.q2_target(s1, True, a1)  # [b, n_a]
-                q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ) - self.alpha * loga1
+                q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ) - self.alpha.detach() * loga1
                 q_pi_targ = (p_a1*q_pi_targ).sum(dim=1)
                 backup = r + self.gamma * (1 - d) * (q_pi_targ)
 
@@ -280,8 +282,8 @@ class MBPO(SAC):
     def updateP(self, s, a, r, s1, d):
         loss = 0
         for i in range(self.n_p):
-            loss, r_, s1_, d_ =  self.ps[i](s, a, r, s1, d)
-            loss = loss + loss
+            loss_, r_, s1_, d_ =  self.ps[i](s, a, r, s1, d)
+            loss = loss + loss_
         self.p_optimizer.zero_grad()
         loss.sum().backward()
         torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
@@ -387,11 +389,16 @@ class MultiAgent(nn.Module):
         results = parallelEval(self.pool, data_split)
         results = self.wrappers['p_out'](results)
         if hasattr(self.env, 'state2Reward'):
-            reward_, done_ = self.env.state2Reward(results[0])
+            reward_, done_ = self.env.state2Reward(results[1])
+            state_error = (results[1] - data['s1'])**2
             reward_loss = (reward - reward_)**2
             reward_var = (reward - reward.mean(dim=0, keepdim=True))**2
             self.logger.log(reward_error = reward_loss.mean(), 
-                           reward_var = reward_var.mean())
+                           reward_var = reward_var.mean(),
+                           state_error = state_error.mean())
+            debug_reward, done_ = self.env.state2Reward(data['s1'])
+            debug_reward = (debug_reward - reward)**2
+            self.logger.log({'debug/reward_error': debug_reward.mean()})
         
     def updateQ(self, **data):
         """

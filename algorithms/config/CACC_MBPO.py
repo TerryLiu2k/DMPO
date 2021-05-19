@@ -11,8 +11,8 @@ from ..envs.CACC import env_fn
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
 debug = True
-radius = 1
-radius_pi = 1
+radius = 2
+radius_pi = 2
 
 algo_args = Config()
 algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
@@ -39,7 +39,7 @@ p_args=Config()
 p_args.network = MLP
 p_args.activation=torch.nn.ReLU
 p_args.lr=3e-4
-p_args.sizes = [5*(1+2*radius), 32, 64] 
+p_args.sizes = [5*(1+2*radius), 32, 64, 64] 
 p_args.update_interval=1/10
 p_args.n_embedding = (1+2*radius)
 """
