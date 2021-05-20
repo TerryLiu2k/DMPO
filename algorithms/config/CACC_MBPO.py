@@ -10,7 +10,7 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = True
+debug = False
 radius = 2
 radius_pi = 2
 
@@ -52,7 +52,7 @@ p_args.refresh_interval=int(1e2) # refreshes the model buffer
 # ideally rollouts should be used only once
 p_args.branch=40
 p_args.roll_length=1 # length > 1 not implemented yet
-p_args.to_predict = 's'
+p_args.to_predict = 'srd'
 
 q_args=Config()
 q_args.network = MLP
@@ -99,7 +99,7 @@ args = Config()
 device = 0
 args.save_period=1800 # in seconds
 args.log_period=int(20)
-args.seed=0
+args.seed=np.random.randint(65536)
 
 q_args.env_fn = env_fn
 agent_args.env_fn = env_fn

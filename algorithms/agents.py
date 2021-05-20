@@ -361,6 +361,8 @@ class MultiAgent(nn.Module):
             if hasattr(self.agents[0], attr):
                 setattr(self, attr, True)
         self.pool = None #Pool(n_agent)
+        if hasattr(self.agents[0], 'ps'):
+            self.p_to_predict = agent_args['p_args'].to_predict
         # removed agent parallelism for it does not yield any performance gain
         
     def roll(self, **data):
@@ -375,7 +377,7 @@ class MultiAgent(nn.Module):
         data = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, data)
         results = self.wrappers['p_out'](results) # r, s1, d
-        if hasattr(self.env, 'state2Reward'):
+        if not 'r' in self.p_to_predict:
             s1 = results[1]
             reward, done = self.env.state2Reward(s1)
             return reward, s1, done
@@ -388,7 +390,7 @@ class MultiAgent(nn.Module):
         data_split = self.wrappers['p_in'](data)
         results = parallelEval(self.pool, data_split)
         results = self.wrappers['p_out'](results)
-        if hasattr(self.env, 'state2Reward'):
+        if not 'r' in self.p_to_predict:
             reward_, done_ = self.env.state2Reward(results[1])
             state_error = (results[1] - data['s1'])**2
             reward_loss = (reward - reward_)**2

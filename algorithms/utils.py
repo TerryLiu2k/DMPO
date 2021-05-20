@@ -7,6 +7,7 @@ import wandb
 import ipdb as pdb
 import time
 import dill # overrides multiprocessing
+from torch.utils.tensorboard import SummaryWriter
 
 def _runDillEncoded(payload):
     fun, args = dill.loads(payload)
@@ -207,6 +208,7 @@ class Logger(object):
     def __init__(self, args, mute=False, prefix = "", root=None):
         self.group = args.algo_args.env_fn.__name__
         self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
+        args.name = self.name
         if not mute:
             if root is None:
                 run=wandb.init(
@@ -216,8 +218,11 @@ class Logger(object):
                     group=self.group,
                 )
                 self.logger = run
+                self.writer = SummaryWriter(log_dir=f"runs/{self.name}")
+                self.writer.add_text("config", f"{args._toDict(recursive=True)}")
             else:
                 self.logger = root.logger
+                self.writer = root.writer
         self.mute = mute
         self.args = args
         self.step_key = 'interaction'
@@ -301,6 +306,12 @@ class Logger(object):
                      # removes the first slash, to be wandb compatible
                     log_key = log_key[1:]
                 data[log_key] = self.buffer[key]
+
+                if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0:
+                    self.writer.add_histogram(log_key, data[log_key], self.buffer[self.step_key])
+                else:
+                    self.writer.add_scalar(log_key, data[log_key], self.buffer[self.step_key])
+                    
             self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
             # "warning: step must only increase "commit = True
             # because wandb assumes step must increase per commit
