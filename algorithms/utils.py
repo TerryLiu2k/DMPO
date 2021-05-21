@@ -307,7 +307,8 @@ class Logger(object):
                     log_key = log_key[1:]
                 data[log_key] = self.buffer[key]
 
-                if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0:
+                if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0 or\
+                isinstance(data[log_key], np.ndarray) and len(data[log_key].shape)> 0:
                     self.writer.add_histogram(log_key, data[log_key], self.buffer[self.step_key])
                 else:
                     self.writer.add_scalar(log_key, data[log_key], self.buffer[self.step_key])

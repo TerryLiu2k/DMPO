@@ -10,7 +10,7 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = True
+debug = False
 radius_q = 2
 radius = 1
 # radius for p and pi
@@ -50,7 +50,7 @@ p_args.n_embedding = (1+2*radius)
  in principle this can be arbitrarily frequent
 """
 p_args.n_p=7 # ensemble
-p_args.refresh_interval=int(1e2) # refreshes the model buffer
+p_args.refresh_interval=int(2e2) # refreshes the model buffer
 # ideally rollouts should be used only once
 p_args.branch=40
 p_args.roll_length=1 # length > 1 not implemented yet
