@@ -3,7 +3,7 @@ import ipdb as pdb
 import numpy as np
 from ..utils import Config, Logger, setSeed, gather, collect, listStack, reduce
 from ..models import MLP
-from ..agents import MBPO, MultiAgent
+from ..agents import SAC, MultiAgent
 from ..algorithm import RL
 from ..envs.CACC import env_fn
 
@@ -64,11 +64,11 @@ wrappers = {'p_in': pInWrapper,
            'pi_in': piInWrapper}
 
 agent_args=Config()
-def MultiagentMBPO(**agent_args):
-    agent_args['agent']=MBPO
+def MultiagentSAC(**agent_args):
+    agent_args['agent']=SAC
     return MultiAgent(**agent_args)
 agent_args.wrappers = wrappers
-agent_args.agent=MultiagentMBPO
+agent_args.agent=MultiagentSAC
 agent_args.n_agent=8
 agent_args.gamma=0.99
 agent_args.alpha=0.2
