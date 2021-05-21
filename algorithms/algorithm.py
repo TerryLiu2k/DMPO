@@ -191,8 +191,8 @@ class RL(object):
                 ep_ret += r.mean()
                 ep_len += 1
             if hasattr(test_env, 'rescaleReward'):
-                ep_ret = test_env.rescaleReward(ep_ret, ep_len)
-            returns += [ep_ret]
+                raw_ret = test_env.rescaleReward(ep_ret, ep_len)
+            returns += [raw_ret]
             lengths += [ep_len]
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)
@@ -275,7 +275,7 @@ class RL(object):
             self.t = t
             self.step()
             if hasattr(self.agent, "ps") and t >=self.n_warmup+self.start_step \
-                and (t% self.refresh_interval == 0 or len(self.buffer.data) is 0):
+                and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
                 self.roll()
                 
             self.updateAgent()

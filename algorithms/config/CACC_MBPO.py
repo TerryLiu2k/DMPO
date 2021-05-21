@@ -54,7 +54,7 @@ p_args.refresh_interval=int(2e2) # refreshes the model buffer
 # ideally rollouts should be used only once
 p_args.branch=40
 p_args.roll_length=1 # length > 1 not implemented yet
-p_args.to_predict = 'srd'
+p_args.to_predict = 's'
 
 q_args=Config()
 q_args.network = MLP

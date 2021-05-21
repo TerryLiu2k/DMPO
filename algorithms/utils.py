@@ -198,7 +198,8 @@ class Logger(object):
         stores the values, log once when flush is called
     syntactic sugar
         supports both .log(data={key: value}) and .log(key=value) 
-    custom x axis (wandb is buggy about this)
+    multiple backends
+        forwards logging to both tensorboard and wandb
     logger hiearchy and multiagent multiprocess logger
         the prefix does not end with "/"
         prefix = "" is the root logger
@@ -267,7 +268,8 @@ class Logger(object):
         data = {}
         for key in raw_data: # also logs the mean for histograms
             data[key] = raw_data[key]
-            if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0:
+            if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0 or\
+            isinstance(data[key], np.ndarray) and len(data[key].shape)> 0:
                 data[key+'_mean'] = data[key].mean()
             
         # updates the buffer

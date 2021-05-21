@@ -10,7 +10,7 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = True
+debug = False
 radius_q = 2
 radius = 1
 # radius for p and pi
