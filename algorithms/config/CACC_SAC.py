@@ -24,7 +24,7 @@ algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
  Only 3e5 samples are needed for parameterized input continous motion control
  Only 3e4 needed for CACC
 """
-algo_args.replay_size=int(1e5)
+algo_args.replay_size=int(1e6)
 algo_args.max_ep_len=600
 algo_args.test_interval = int(1e3)
 algo_args.batch_size=256 # the same as MBPO

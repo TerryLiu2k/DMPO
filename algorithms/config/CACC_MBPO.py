@@ -10,9 +10,10 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = False
-radius = 2
-radius_pi = 2
+debug = True
+radius_q = 2
+radius = 1
+# radius for p and pi
 
 algo_args = Config()
 algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
@@ -24,11 +25,12 @@ algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
  Only 3e5 samples are needed for parameterized input continous motion control
  Only 3e4 needed for CACC
 """
-algo_args.replay_size=int(1e5)
+algo_args.replay_size=int(1e6)
 algo_args.max_ep_len=600
-algo_args.test_interval = int(1e3)
+algo_args.test_interval = int(2e3)
 algo_args.batch_size=256 # the same as MBPO
 algo_args.n_step=int(1e8)
+algo_args.n_test = 10
 if debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2
@@ -58,23 +60,23 @@ q_args=Config()
 q_args.network = MLP
 q_args.activation=torch.nn.ReLU
 q_args.lr=3e-4
-q_args.sizes = [5*(1+2*radius), 32, 64, 5] # 4 actions, dueling q learning
+q_args.sizes = [5*(1+2*radius_q), 32, 64, 5] # 4 actions, dueling q learning
 q_args.update_interval=1/20
 # MBPO used 1/40 for continous control tasks
 # 1/20 for invert pendulum
-q_args.n_embedding = (2*radius)
+q_args.n_embedding = (2*radius_q)
 
 pi_args=Config()
 pi_args.network = MLP
 pi_args.activation=torch.nn.ReLU
 pi_args.lr=3e-4
-pi_args.sizes = [5*(1+2*radius_pi), 32, 64, 4] 
+pi_args.sizes = [5*(1+2*radius), 32, 64, 4] 
 pi_args.update_interval=1/20
 
 pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
 #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-qInWrapper = collect({'r':gather(0), 'd':gather(0), 's1': gather(radius), '*':gather(radius)})
-piInWrapper = collect({'s': gather(radius_pi), 'q': reduce(radius)})
+qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius_q)})
+piInWrapper = collect({'s': gather(radius), 'q': reduce(radius_q)})
 
 wrappers = {'p_in': pInWrapper,
            'q_in': qInWrapper,

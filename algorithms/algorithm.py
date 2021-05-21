@@ -53,7 +53,10 @@ class ReplayBuffer:
         return batch
     
     def iterBatch(self, batch_size):
-        """ reads backwards from ptr to use the most recent samples """
+        """ 
+        reads backwards from ptr to use the most recent samples,
+        not used because it makes learning unstable
+        """
         if self.unread == 0:
             return None
         batch_size =  min(batch_size, self.unread)
@@ -87,7 +90,7 @@ class RL(object):
     def __init__(self, logger, device,
        env_fn, agent_args,
         n_warmup, batch_size, replay_size,
-       max_ep_len, test_interval, n_step, 
+       max_ep_len, test_interval, n_step, n_test,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
        checkpoint_dir=None, start_step = 0,
        **kwargs):
@@ -119,6 +122,7 @@ class RL(object):
         self.device=device
         
         self.test_interval = test_interval
+        self.n_test = n_test
         
         # Experience buffer
         if isinstance(self.env.action_space, gym.spaces.Discrete):
@@ -171,19 +175,28 @@ class RL(object):
             self.q_update_interval = 1
 
     def test(self):
-        test_env = self.test_env
-        test_env.reset()
-        d, ep_ret, ep_len = np.array([False]), 0, 0
-        while not(d.all() or (ep_len == self.max_ep_len)):
-            # Take deterministic actions at test time 
-            state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
-            action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
-            # [b=1, (n_agent), ...]
-            _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
-            d=np.array(d)
-            ep_ret += r
-            ep_len += 1
-        self.logger.log(test_episode_reward=ep_ret.mean(), test_episode_len=ep_len, test_episode=None)
+        returns = []
+        lengths = []
+        for i in range(self.n_test):
+            test_env = self.test_env
+            test_env.reset()
+            d, ep_ret, ep_len = np.array([False]), 0, 0
+            while not(d.all() or (ep_len == self.max_ep_len)):
+                # Take deterministic actions at test time 
+                state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
+                action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
+                # [b=1, (n_agent), ...]
+                _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
+                d=np.array(d)
+                ep_ret += r.mean()
+                ep_len += 1
+            if hasattr(test_env, 'rescaleReward'):
+                ep_ret = test_env.rescaleReward(ep_ret, ep_len)
+            returns += [ep_ret]
+            lengths += [ep_len]
+        returns = np.stack(returns, axis=0)
+        lengths = np.stack(lengths, axis=0)
+        self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
         
     def updateAgent(self):
         agent = self.agent
@@ -216,7 +229,7 @@ class RL(object):
         batch_size = self.batch_size
         env_buffer._rewind()
         buffer.clear()
-        batch = env_buffer.iterBatch(self.batch_size)
+        batch = env_buffer.sampleBatch(self.batch_size)
         while not batch is None and len(buffer.data) < buffer.max_size:
             s = batch['s']
             a = self.agent.act(s)
@@ -225,7 +238,7 @@ class RL(object):
                 buffer.storeBatch(s, a, r, s1, d)
                 if len(buffer.data) >= buffer.max_size:
                     break
-            batch = env_buffer.iterBatch(batch_size)
+            batch = env_buffer.sampleBatch(batch_size)
             
     def step(self):
         env = self.env

@@ -143,7 +143,7 @@ def listStack(lst, dim=1):
     takes a list (agent parallel) of lists (return values) and stacks the outer lists
     """
     results = []
-    for i in range(len(lst[0])):# torch.stack squeezes..
+    for i in range(len(lst[0])):
         results.append(torch.stack([agent_return[i] for agent_return in lst], dim=dim))
     return results
 

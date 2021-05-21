@@ -42,6 +42,16 @@ class CACCWrapper(gym.Wrapper):
         reward, done =  self.env.state2Reward(state)
         return (reward+200)/200, done
     
+    def rescaleReward(self, acc_reward, episode_len):
+        """
+        acc_reward is sum over trajectory, mean over agent
+        """
+        acc_reward = acc_reward*200
+        acc_reward -= episode_len*200
+        reward = acc_reward*8/episode_len
+        return reward
+        
+        
     def step(self, action):
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)

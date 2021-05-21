@@ -144,7 +144,7 @@ class SAC(QLearning):
             pi_params = self.pi.parameters()                   
         self.pi_optimizer = Adam(pi_params, lr=pi_args.lr)
 
-    def act(self, s, deterministic=False):
+    def act(self, s, deterministic=False, output_distribution=False):
         """
             o of shape [b, ..]
             not differentiable
@@ -154,6 +154,7 @@ class SAC(QLearning):
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
                 a = self.pi(s)
+                p_a = a
                 # [b, n_agent, n_action] or [b, n_action]
                 greedy_a = a.argmax(dim=-1)
                 stochastic_a = Categorical(a).sample()
@@ -162,17 +163,21 @@ class SAC(QLearning):
                 self.logger.log(eps=self.eps)
                 if  torch.isnan(a).any():
                     print('action is nan!')
-                    return random_a
+                    a = random_a
                 elif deterministic:
-                    return greedy_a
+                    a = greedy_a
                 elif np.random.rand()<self.eps:
-                    return random_a
-                return stochastic_a
+                    a = random_a
+                else:
+                    a = stochastic_a
             else:
                 a = self.pi(s, deterministic)
                 if isinstance(a, tuple):
                     a = a[0]
-            return a.detach()
+            if output_distribution:
+                return a.detach(), p_a.detach()
+            else:
+                return a.detach()
     
     def updatePi(self, s, q = None):
         """
@@ -212,7 +217,7 @@ class SAC(QLearning):
                 self.alpha.data = torch.tensor(0, dtype=torch.float).to(self.alpha.device)
 
     
-    def updateQ(self, s, a, r, s1, d, a1=None):
+    def updateQ(self, s, a, r, s1, d, a1=None, p_a1=None):
         """
             uses alpha to encourage diversity
             for discrete action spaces, different from QLearning since we have a policy network
@@ -228,7 +233,6 @@ class SAC(QLearning):
             # Bellman backup for Q functions
             with torch.no_grad():
                 # Target actions come from *current* policy
-                p_a1 = self.pi(s1).detach() # [b, n_a]
                 # local a1 distribution
                 loga1 = torch.log(p_a1)
                 q1_pi_targ = self.q1_target(s1, True, a1) 
@@ -353,7 +357,6 @@ class MultiAgent(nn.Module):
         self.agents = nn.ModuleList(self.agents)
         wrappers['p_out'] = listStack
         # (s, r, d)
-        wrappers['pi_out'] = lambda x: torch.stack(x, dim=1)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
         # (a)
         self.wrappers = wrappers
@@ -405,12 +408,17 @@ class MultiAgent(nn.Module):
     def updateQ(self, **data):
         """
         computes a1 and reuses for each agent's model
+        s, a, r, s1, d
+        q(s, a), q(s1, pi(s1))
         """
-        data['func'] = 'updateQ'
-        data['agent'] = self.agents
-        data['a1'] = self.act(data['s1'], deterministic=False)
-        data = self.wrappers['q_in'](data)
-        results = parallelEval(self.pool, data)
+        a1, p_a1 = self.act(data['s1'], deterministic=False, output_distribution=True)
+        inputs = {'agent': self.agents, 
+                 'a1': a1,
+                 'p_a1': p_a1,
+                 'func': 'updateQ'}
+        inputs.update(data)
+        inputs = self.wrappers['q_in'](inputs)
+        results = parallelEval(self.pool, inputs)
         
     def _evalQ(self, **data):
         data = {'output_distribution': True, 
@@ -434,11 +442,15 @@ class MultiAgent(nn.Module):
         data = self.wrappers['pi_in'](data)
         results = parallelEval(self.pool, data)    
 
-    def act(self, S, deterministic=False):
-        data = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents}
+    def act(self, S, deterministic=False, output_distribution=False):
+        data = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents,
+               'output_distribution': output_distribution}
         data = self.wrappers['pi_in'](data)
         results = parallelEval(self.pool, data)
-        return self.wrappers['pi_out'](results)
+        if output_distribution:
+            return listStack(results)
+        else:
+            return torch.stack(results, dim=1)
     
     def setEps(self, eps):
         for agent in self.agents:
