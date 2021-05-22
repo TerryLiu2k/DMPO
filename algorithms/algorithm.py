@@ -199,6 +199,7 @@ class RL(object):
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)
         self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
+        return returns.mean()
         
     def updateAgent(self):
         agent = self.agent
@@ -281,8 +282,8 @@ class RL(object):
                 self.roll()
                 
             self.updateAgent()
-            
-            self.logger.save(self.agent) # automatically deals with the save period
                 
             if t % self.test_interval == 0:
-                self.test()
+                mean_return = self.test()
+                self.agent.save(info = mean_return) # automatically save once per save_period seconds
+        

@@ -117,4 +117,6 @@ def main():
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
     setSeed(args.seed)
-    RL(logger = Logger(args, mute=debug), device=device, **algo_args._toDict()).run()
+    logger = LogServer(args, mute=debug)
+    logger = LogClient(logger)
+    RL(logger = logger, device=device, **algo_args._toDict()).run()

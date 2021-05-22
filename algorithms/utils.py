@@ -162,14 +162,40 @@ class Config(object):
                 pr[name] = value
         return pr
     
-class LoggerClient(object):
-    def __init__(self, log_period, prefix, root):
-        self.step_key = 'interaction'
-        self.buffer = {self.step_key: 0}
-        self.log_period = args.log_period
-        self.last_log = 0
+class LogClient(object):
+    """
+    A logger wrapper with buffer for visualized logger backends, such as tb or wandb
+    counting
+        all None valued keys are counters
+        this feature is helpful when logging from model interior
+        since the model should be step-agnostic
+    economic logging
+        stores the values, log once per log_period
+    syntactic sugar
+        supports both .log(data={key: value}) and .log(key=value) 
+    multiple backends
+        forwards logging to both tensorboard and wandb
+    logger hiearchy and multiagent multiprocess logger
+        the prefix does not end with "/"
+        prefix = "" is the root logger
+        prefix = "*/agent0" ,... are the agent loggers
+        children get n_interaction from the root logger
+    """
+    def __init__(self, server, prefix=""):
+        self.buffer = {}
         self.prefix = prefix
-        self.root = root
+        if isinstance(server, LogClient):
+            server = server.server
+            prefix = f"{server.prefix}/{prefix}"
+        self.log_period = server.args.log_period
+        self.last_log = 0
+        
+    def child(self, prefix=""):
+        return LogClient(prefix, self)
+        
+    def flush(self):
+        ray.get(self.server.flush.remote(self))
+        self.last_log = time.time()
         
     def log(self, raw_data=None, rolling=None, **kwargs):
         if raw_data is None:
@@ -207,33 +233,23 @@ class LoggerClient(object):
                 else:
                     self.buffer[key] = data[key]
 
-        if not self.prefix == "":
-            self.buffer[self.step_key] = self.root.buffer[self.step_key]
-        
         # uploading
         if not self.mute and time.time()>self.log_period+self.last_log:
-            self.root.forward(data)
+            self.flush()
+
+    def save(self, model, info=None):
+        ray.get(self.server.save.remote({self.prefix: model.state_dict()}, info))
+
             
 
 @ray.remote
-class Logger(LoggerClient):
+class LogServer(object):
     """
-    A logger wrapper with buffer for visualized logger backends, such as tb or wandb
-    counting
-        all None valued keys are counters
-        this feature is helpful when logging from model interior
-        since the model should be step-agnostic
-    economic logging
-        stores the values, log once when flush is called
-    syntactic sugar
-        supports both .log(data={key: value}) and .log(key=value) 
-    multiple backends
-        forwards logging to both tensorboard and wandb
-    logger hiearchy and multiagent multiprocess logger
-        the prefix does not end with "/"
-        prefix = "" is the root logger
-        prefix = "*/agent0" ,... are the agent loggers
-        children get n_interaction from the root logger
+    We do not assume the logging backend (e.g. tb, wandb) supports multiprocess logging,
+    therefore we implement a centralized log manager
+    
+    It should not be directly invoked, since we want to hide the implementation detail (.log.remote)
+    Wrap it with prefix="" to get the root logger
     """
     def __init__(self, args, mute=False):
         self.group = args.algo_args.env_fn.__name__
@@ -255,43 +271,21 @@ class Logger(LoggerClient):
                 self.writer = root.writer
         self.mute = mute
         self.args = args
-        self.step_key = 'interaction'
-        self.buffer = {self.step_key: 0}
-        # the prefix of the log keys, also used like a rank for multiprocessing
-        self.log_period = args.log_period
         self.save_period = args.save_period
         self.last_save = time.time()
-        self.last_log = 0
-
-    def fork(self, n):
-        """ for multiprocess logging, not used now """
-        loggers = [Logger(self.args, mute=self.mute, prefix=str(i+1), root=self.root) for i in range(n)]
-        return loggers
-    
-    def child(self, name):
-        logger = Logger(self.args, mute=self.mute, prefix=self.prefix+"/"+name, root=self.root)
-        return logger
-        
-    def save(self, model):
-        if self.prefix == "" and time.time() - self.last_save >= self.save_period:
-            exists_or_mkdir(f"checkpoints/{self.name}")
-            filename = f"{self.buffer[self.step_key]}.pt"
-            if not self.mute:
-                with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
-                    torch.save(model.state_dict(), f)
-                print(f"checkpoint saved as {filename}")
-            else:
-                print("not saving checkpoints because the logger is muted")
-            self.last_save = time.time()
+        self.state_dict = {}
             
-    def flush(self, buffer=None):
+    def flush(self, logger=None):
+        if logger = None:
+            logger = self
+        buffer = logger.buffer
         data = {}
-        for key in self.buffer:
-            log_key = self.prefix+"/"+key
+        for key in buffer:
+            log_key = logger.prefix+"/"+key
             while log_key[0] == '/':
                  # removes the first slash, to be wandb compatible
                 log_key = log_key[1:]
-            data[log_key] = self.buffer[key]
+            data[log_key] = buffer[key]
 
             if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0 or\
             isinstance(data[log_key], np.ndarray) and len(data[log_key].shape)> 0:
@@ -304,51 +298,19 @@ class Logger(LoggerClient):
         # because wandb assumes step must increase per commit
         self.last_log = time.time()
         
-        
-    def log(self, raw_data=None, rolling=None, **kwargs):
-        if raw_data is None:
-            raw_data = {}
-        raw_data.update(kwargs)
-        
-        data = {}
-        for key in raw_data: # also logs the mean for histograms
-            data[key] = raw_data[key]
-            if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0 or\
-            isinstance(data[key], np.ndarray) and len(data[key].shape)> 0:
-                data[key+'_mean'] = data[key].mean()
-            
-        # updates the buffer
-        for key in data:
-            if data[key] is None:
-                if not key in self.buffer:
-                    self.buffer[key] = 0
-                self.buffer[key] += 1
+    def save(self, state_dict, info=None):
+        self.state_dict.update(state_dict)
+        if time.time() - self.last_save >= self.save_period:
+            exists_or_mkdir(f"checkpoints/{self.name}")
+            filename = f"{self.buffer[self.step_key]}_{info}.pt"
+            if not self.mute:
+                with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
+                    torch.save(self.state_dict, f)
+                print(f"checkpoint saved as {filename}")
             else:
-                valid = True
-                # check nans
-                if isinstance(data[key], torch.Tensor):
-                    data[key] = data[key].detach().cpu()
-                    if torch.isnan(data[key]).any():
-                        valid = False
-                elif np.isnan(data[key]).any():
-                    valid = False
-                if not valid:
-                    print(f'{key} is nan!')
-                   # pdb.set_trace()
-                    continue
-                if rolling and key in self.buffer:
-                    self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling
-                else:
-                    self.buffer[key] = data[key]
-
-        if not self.prefix == "":
-            self.buffer[self.step_key] = self.root.buffer[self.step_key]
-        
-        # uploading
-        if not self.mute and time.time()>self.log_period+self.last_log:
-            self.flush()
+                print("not saving checkpoints because the logger is muted")
+            self.last_save = time.time()
             
-
 
 def setSeed(seed):
     random.seed(seed)

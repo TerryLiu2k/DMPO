@@ -118,6 +118,9 @@ class QLearning(nn.Module):
         
     def setEps(self, eps):
         self.eps = eps
+        
+    def save(self, info=None):
+        self.logger.save(self, info)
 
 class SAC(QLearning):
     """ Actor Critic (Q function) """
@@ -477,3 +480,6 @@ class MultiAgent(nn.Module):
     
     def setEps(self, eps):
         parallelEval(self.agents, 'setEps', [{'eps': eps}]*len(self.agents))
+        
+    def save(self, info=None):
+        parallelEval(self.agents, 'save', [{info}]*len(self.agents))
