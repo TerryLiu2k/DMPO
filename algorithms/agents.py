@@ -316,14 +316,14 @@ class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
     """
-    def __init__(self, fn, args):
-        self.instance = fn(**args)
+    def __init__(self, agent_fn, **args):
+        self.instance = agent_fn(**args).to(torch.device(0))
         
     def roll(self, **data):
         return self.instance.roll(**data)
     
     def updateP(self, **data):
-        self.instance.updateP(**data)
+        return self.instance.updateP(**data)
         
     def updateQ(self, **data):
         self.instance.updateQ(**data)
@@ -334,8 +334,8 @@ class Worker(object):
     def updatePi(self, **data):
         self.instance.updatePi(**data) 
 
-    def act(self, S, deterministic=False, output_distribution=False):
-        return self.instance( S, deterministic, output_distribution)
+    def act(self, s, deterministic=False, output_distribution=False):
+        return self.instance.act(s, deterministic, output_distribution)
     
     def setEps(self, eps):
         self.instance.setEps(eps)
@@ -383,9 +383,10 @@ class MultiAgent(nn.Module):
         self.env= env_fn()
         self.env.reset()
         self.agents = []
-        pdb.set_trace()
+        if not agent_args['p_args'] is None:
+            self.p_to_predict = agent_args['p_args'].to_predict
         for i in range(n_agent):
-            agent = Worker.remote(agent_fn, logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args)
+            agent = Worker.remote(agent_fn=agent_fn, logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args)
             self.agents.append(agent)
         wrappers['p_out'] = listStack
         # (s, r, d)
@@ -406,10 +407,8 @@ class MultiAgent(nn.Module):
         s = data['s']
         a = self.act(s, deterministic=False)
         data['a'] = a
-        data['func'] = 'roll'
-        data['agent'] = self.agents
         data = self.wrappers['p_in'](data)
-        results = parallelEval(self.pool, data)
+        results = parallelEval(self.agents, 'roll' ,data)
         results = self.wrappers['p_out'](results) # r, s1, d
         if not 'r' in self.p_to_predict:
             s1 = results[1]
@@ -418,11 +417,10 @@ class MultiAgent(nn.Module):
         return results
     
     def updateP(self, **data):
-        data['func'] = 'updateP'
-        data['agent'] = self.agents
         reward = data['r']
         data_split = self.wrappers['p_in'](data)
-        results = parallelEval(self.pool, data_split)
+        results = parallelEval(self.agents, 'updateP', data_split)
+        # returns r, s1, d for logging
         results = self.wrappers['p_out'](results)
         if not 'r' in self.p_to_predict:
             reward_, done_ = self.env.state2Reward(results[1])
@@ -443,22 +441,18 @@ class MultiAgent(nn.Module):
         q(s, a), q(s1, pi(s1))
         """
         a1, p_a1 = self.act(data['s1'], deterministic=False, output_distribution=True)
-        inputs = {'agent': self.agents, 
-                 'a1': a1,
-                 'p_a1': p_a1,
-                 'func': 'updateQ'}
+        inputs = {'a1': a1,
+                 'p_a1': p_a1}
         inputs.update(data)
         inputs = self.wrappers['q_in'](inputs)
-        results = parallelEval(self.pool, inputs)
+        results = parallelEval(self.agents, 'updateQ', inputs)
         
     def _evalQ(self, **data):
         data = {'output_distribution': True, 
-                 'agent': self.agents, 
                  's': data['s'], 
-                 'a': data['a'],
-                 'func': '_evalQ'}
+                 'a': data['a']}
         data = self.wrappers['q_in'](data)
-        results = parallelEval(self.pool, data)
+        results = parallelEval(self.agents, '_evalQ', data)
         results = self.wrappers['q_out'](results)
         return results
         
@@ -466,23 +460,20 @@ class MultiAgent(nn.Module):
         q = self._evalQ(**data)
         # a list of qs
         data = {'q': q,
-               'func': 'updatePi',
                 's': data['s'],
-                'agent': self.agents
                }
         data = self.wrappers['pi_in'](data)
-        results = parallelEval(self.pool, data)    
+        results = parallelEval(self.agents, 'updatePi', data)    
 
-    def act(self, S, deterministic=False, output_distribution=False):
-        data = {'s': S, 'deterministic':deterministic, 'func': 'act', 'agent': self.agents,
+    def act(self, s, deterministic=False, output_distribution=False):
+        data = {'s': s, 'deterministic':deterministic, 
                'output_distribution': output_distribution}
         data = self.wrappers['pi_in'](data)
-        results = parallelEval(self.pool, data)
+        results = parallelEval(self.agents, 'act', data)
         if output_distribution:
             return listStack(results)
         else:
             return torch.stack(results, dim=1)
     
     def setEps(self, eps):
-        futures = [agent.setEps.remote(eps) for agent in self.agents]
-        ray.get(futures)
+        parallelEval(self.agents, 'setEps', [{'eps': eps}]*len(self.agents))

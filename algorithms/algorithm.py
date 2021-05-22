@@ -270,7 +270,6 @@ class RL(object):
         
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
-        pdb.set_trace()
         last_save = 0
         pbar = iter(tqdm(range(int(1e8))))
         for t in range(self.start_step, self.n_step): 

@@ -4,36 +4,20 @@ import random
 import numpy as np
 import torch
 import wandb
-import ipdb as pdb
+from ray.util import pdb
 import ray
 import time
-import dill # overrides multiprocessing
 from torch.utils.tensorboard import SummaryWriter
 
-def _runDillEncoded(payload):
-    fun, args = dill.loads(payload)
-    return fun(args)
-
-def _worker(args):
-    """ invokes the agents in parallel"""
-    agent = args.pop('agent')
-    func = getattr(agent, args.pop('func'))
-    result = func(**args)
-    return result
-
-def _parallelEval(pool, args):
-    payload = [dill.dumps((_worker, item)) for item in args]
-    return list(pool.map(_runDillEncoded, payload, chunksize=1))
-
-def parallelEval(pool, args):
+def parallelEval(agents, func, args):
     """
     expects a list of dicts
     """
     results = []
     for i, arg in enumerate(args):
-        agent = arg.pop('agent')
-        func = getattr(agent, arg.pop('func')+".remote")
-        result = func(**arg)
+        agent = agents[i]
+        remote = getattr(agent, func).remote
+        result = remote(**arg)
         results.append(result)
     results = ray.get(results)
     return results

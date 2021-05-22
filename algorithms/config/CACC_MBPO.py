@@ -86,10 +86,10 @@ def main():
                'pi_in': piInWrapper}
     agent_args=Config()
     def MultiagentMBPO(**agent_args):
-        agent_args['agent']=MBPO.remote
+        agent_args['agent']=MBPO
         return MultiAgent(**agent_args)
     agent_args.wrappers = wrappers
-    agent_args.agent=MBPO
+    agent_args.agent=MultiagentMBPO
     agent_args.n_agent=8
     agent_args.gamma=0.99
     agent_args.alpha=0.2
