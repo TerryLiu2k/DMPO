@@ -162,89 +162,14 @@ class Config(object):
                 pr[name] = value
         return pr
     
-class TabularLogger(object):
-    """
-    A text interface logger, outputs mean and std several times per epoch
-    """
-    def __init__(self):
-        self.buffer = {}
-        
-    def log(dic, commit=False):
-        if commit:
-            print(1)
-         
-class Logger(object):
-    """
-    A logger wrapper with buffer for visualized logger backends, such as tb or wandb
-    counting
-        all None valued keys are counters
-        this feature is helpful when logging from model interior
-        since the model should be step-agnostic
-    economic logging
-        stores the values, log once when flush is called
-    syntactic sugar
-        supports both .log(data={key: value}) and .log(key=value) 
-    multiple backends
-        forwards logging to both tensorboard and wandb
-    logger hiearchy and multiagent multiprocess logger
-        the prefix does not end with "/"
-        prefix = "" is the root logger
-        prefix = "*/agent0" ,... are the agent loggers
-        children get n_interaction from the root logger
-    """
-    def __init__(self, args, mute=False, prefix = "", root=None):
-        self.group = args.algo_args.env_fn.__name__
-        self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
-        args.name = self.name
-        if not mute:
-            if root is None:
-                run=wandb.init(
-                    project="RL",
-                    config=args._toDict(recursive=True),
-                    name=self.name,
-                    group=self.group,
-                )
-                self.logger = run
-                self.writer = SummaryWriter(log_dir=f"runs/{self.name}")
-                self.writer.add_text("config", f"{args._toDict(recursive=True)}")
-            else:
-                self.logger = root.logger
-                self.writer = root.writer
-        self.mute = mute
-        self.args = args
+class LoggerClient(object):
+    def __init__(self, log_period, prefix, root):
         self.step_key = 'interaction'
         self.buffer = {self.step_key: 0}
-        if root is None:
-            self.root = self
-        else:
-            self.root = root
-        self.prefix = prefix
-        # the prefix of the log keys, also used like a rank for multiprocessing
         self.log_period = args.log_period
-        self.save_period = args.save_period
-        self.last_save = time.time()
         self.last_log = 0
-
-    def fork(self, n):
-        """ for multiprocess logging, not used now """
-        loggers = [Logger(self.args, mute=self.mute, prefix=str(i+1), root=self.root) for i in range(n)]
-        return loggers
-    
-    def child(self, name):
-        logger = Logger(self.args, mute=self.mute, prefix=self.prefix+"/"+name, root=self.root)
-        return logger
-        
-    def save(self, model):
-        if self.prefix == "" and time.time() - self.last_save >= self.save_period:
-            exists_or_mkdir(f"checkpoints/{self.name}")
-            filename = f"{self.buffer[self.step_key]}.pt"
-            if not self.mute:
-                with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
-                    torch.save(model.state_dict(), f)
-                print(f"checkpoint saved as {filename}")
-            else:
-                print("not saving checkpoints because the logger is muted")
-            self.last_save = time.time()
+        self.prefix = prefix
+        self.root = root
         
     def log(self, raw_data=None, rolling=None, **kwargs):
         if raw_data is None:
@@ -287,24 +212,143 @@ class Logger(object):
         
         # uploading
         if not self.mute and time.time()>self.log_period+self.last_log:
-            data = {}
-            for key in self.buffer:
-                log_key = self.prefix+"/"+key
-                while log_key[0] == '/':
-                     # removes the first slash, to be wandb compatible
-                    log_key = log_key[1:]
-                data[log_key] = self.buffer[key]
+            self.root.forward(data)
+            
 
-                if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0 or\
-                isinstance(data[log_key], np.ndarray) and len(data[log_key].shape)> 0:
-                    self.writer.add_histogram(log_key, data[log_key], self.buffer[self.step_key])
+@ray.remote
+class Logger(LoggerClient):
+    """
+    A logger wrapper with buffer for visualized logger backends, such as tb or wandb
+    counting
+        all None valued keys are counters
+        this feature is helpful when logging from model interior
+        since the model should be step-agnostic
+    economic logging
+        stores the values, log once when flush is called
+    syntactic sugar
+        supports both .log(data={key: value}) and .log(key=value) 
+    multiple backends
+        forwards logging to both tensorboard and wandb
+    logger hiearchy and multiagent multiprocess logger
+        the prefix does not end with "/"
+        prefix = "" is the root logger
+        prefix = "*/agent0" ,... are the agent loggers
+        children get n_interaction from the root logger
+    """
+    def __init__(self, args, mute=False):
+        self.group = args.algo_args.env_fn.__name__
+        self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
+        args.name = self.name
+        if not mute:
+            if root is None:
+                run=wandb.init(
+                    project="RL",
+                    config=args._toDict(recursive=True),
+                    name=self.name,
+                    group=self.group,
+                )
+                self.logger = run
+                self.writer = SummaryWriter(log_dir=f"runs/{self.name}")
+                self.writer.add_text("config", f"{args._toDict(recursive=True)}")
+            else:
+                self.logger = root.logger
+                self.writer = root.writer
+        self.mute = mute
+        self.args = args
+        self.step_key = 'interaction'
+        self.buffer = {self.step_key: 0}
+        # the prefix of the log keys, also used like a rank for multiprocessing
+        self.log_period = args.log_period
+        self.save_period = args.save_period
+        self.last_save = time.time()
+        self.last_log = 0
+
+    def fork(self, n):
+        """ for multiprocess logging, not used now """
+        loggers = [Logger(self.args, mute=self.mute, prefix=str(i+1), root=self.root) for i in range(n)]
+        return loggers
+    
+    def child(self, name):
+        logger = Logger(self.args, mute=self.mute, prefix=self.prefix+"/"+name, root=self.root)
+        return logger
+        
+    def save(self, model):
+        if self.prefix == "" and time.time() - self.last_save >= self.save_period:
+            exists_or_mkdir(f"checkpoints/{self.name}")
+            filename = f"{self.buffer[self.step_key]}.pt"
+            if not self.mute:
+                with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
+                    torch.save(model.state_dict(), f)
+                print(f"checkpoint saved as {filename}")
+            else:
+                print("not saving checkpoints because the logger is muted")
+            self.last_save = time.time()
+            
+    def flush(self, buffer=None):
+        data = {}
+        for key in self.buffer:
+            log_key = self.prefix+"/"+key
+            while log_key[0] == '/':
+                 # removes the first slash, to be wandb compatible
+                log_key = log_key[1:]
+            data[log_key] = self.buffer[key]
+
+            if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0 or\
+            isinstance(data[log_key], np.ndarray) and len(data[log_key].shape)> 0:
+                self.writer.add_histogram(log_key, data[log_key], self.buffer[self.step_key])
+            else:
+                self.writer.add_scalar(log_key, data[log_key], self.buffer[self.step_key])
+
+        self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
+        # "warning: step must only increase "commit = True
+        # because wandb assumes step must increase per commit
+        self.last_log = time.time()
+        
+        
+    def log(self, raw_data=None, rolling=None, **kwargs):
+        if raw_data is None:
+            raw_data = {}
+        raw_data.update(kwargs)
+        
+        data = {}
+        for key in raw_data: # also logs the mean for histograms
+            data[key] = raw_data[key]
+            if isinstance(data[key], torch.Tensor) and len(data[key].shape)>0 or\
+            isinstance(data[key], np.ndarray) and len(data[key].shape)> 0:
+                data[key+'_mean'] = data[key].mean()
+            
+        # updates the buffer
+        for key in data:
+            if data[key] is None:
+                if not key in self.buffer:
+                    self.buffer[key] = 0
+                self.buffer[key] += 1
+            else:
+                valid = True
+                # check nans
+                if isinstance(data[key], torch.Tensor):
+                    data[key] = data[key].detach().cpu()
+                    if torch.isnan(data[key]).any():
+                        valid = False
+                elif np.isnan(data[key]).any():
+                    valid = False
+                if not valid:
+                    print(f'{key} is nan!')
+                   # pdb.set_trace()
+                    continue
+                if rolling and key in self.buffer:
+                    self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling
                 else:
-                    self.writer.add_scalar(log_key, data[log_key], self.buffer[self.step_key])
-                    
-            self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
-            # "warning: step must only increase "commit = True
-            # because wandb assumes step must increase per commit
-            self.last_log = time.time()
+                    self.buffer[key] = data[key]
+
+        if not self.prefix == "":
+            self.buffer[self.step_key] = self.root.buffer[self.step_key]
+        
+        # uploading
+        if not self.mute and time.time()>self.log_period+self.last_log:
+            self.flush()
+            
+
 
 def setSeed(seed):
     random.seed(seed)

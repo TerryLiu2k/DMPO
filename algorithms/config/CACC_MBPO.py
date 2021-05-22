@@ -13,7 +13,7 @@ from ..envs.CACC import env_fn
 
 
 def main():
-    debug = True
+    debug = False
     radius_q = 2
     radius = 1
     # radius for p and pi
