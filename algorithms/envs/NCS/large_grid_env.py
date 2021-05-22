@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import os
 import seaborn as sns
 import time
-from atsc_env import PhaseMap, PhaseSet, TrafficSimulator
-from envs.large_grid_data.build_file import gen_rou_file
+from .atsc_env import PhaseMap, PhaseSet, TrafficSimulator
+from .envs.large_grid_data.build_file import gen_rou_file
 
 sns.set_color_codes()
 
