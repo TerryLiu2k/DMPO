@@ -1,5 +1,6 @@
 from copy import deepcopy
 from torch.multiprocessing import Pool, Process, set_start_method
+import ray
 
 from .utils import dictSelect, dictSplit, listStack, parallelEval
 from .models import *
@@ -117,7 +118,7 @@ class QLearning(nn.Module):
         
     def setEps(self, eps):
         self.eps = eps
-    
+
 class SAC(QLearning):
     """ Actor Critic (Q function) """
     def __init__(self, logger, env_fn, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs):
@@ -125,7 +126,7 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
-        self.logger = logger.child("SAC")
+        self.logger = logger.child("agent")
         
         self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         self.target_entropy = target_entropy
@@ -266,13 +267,14 @@ class SAC(QLearning):
                         p_targ.data.mul_(1 - self.target_sync_rate)
                         p_targ.data.add_(self.target_sync_rate * p.data)
         
+@ray.remote(num_gpus = 1/8)
 class MBPO(SAC):
     def __init__(self, env_fn, logger, p_args, **kwargs):
         """
             q_net is the network class
         """
         super().__init__(logger, env_fn, **kwargs)
-        logger = logger.child("MBPO")
+        logger = logger.child("agent")
         self.logger = logger
         self.n_p = p_args.n_p
         if isinstance(self.action_space, Box): #continous
@@ -353,8 +355,7 @@ class MultiAgent(nn.Module):
         self.env.reset()
         self.agents = []
         for i in range(n_agent):
-            self.agents.append(agent_fn(logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args))
-        self.agents = nn.ModuleList(self.agents)
+            self.agents.append(agent_fn(logger = logger.child.remote(f"{i}"), env_fn=env_fn, **agent_args))
         wrappers['p_out'] = listStack
         # (s, r, d)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
@@ -453,5 +454,5 @@ class MultiAgent(nn.Module):
             return torch.stack(results, dim=1)
     
     def setEps(self, eps):
-        for agent in self.agents:
-            agent.setEps(eps)
+        futures = [agent.setEps.remote(eps) for agent in self.agents]
+        ray.get(futures)

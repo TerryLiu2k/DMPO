@@ -243,6 +243,7 @@ class RL(object):
     def step(self):
         env = self.env
         state = env.state
+        pdb.set_trace()
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
         eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
         self.agent.setEps(np.clip(eps, 0, 1))

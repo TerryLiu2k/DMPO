@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import wandb
 import ipdb as pdb
+import ray
 import time
 import dill # overrides multiprocessing
 from torch.utils.tensorboard import SummaryWriter
@@ -31,9 +32,10 @@ def parallelEval(pool, args):
     results = []
     for i, arg in enumerate(args):
         agent = arg.pop('agent')
-        func = getattr(agent, arg.pop('func'))
+        func = getattr(agent, arg.pop('func')+".remote")
         result = func(**arg)
         results.append(result)
+    results = ray.get(results)
     return results
 
 def gather(k):
@@ -186,7 +188,8 @@ class TabularLogger(object):
     def log(dic, commit=False):
         if commit:
             print(1)
-            
+         
+@ray.remote
 class Logger(object):
     """
     A logger wrapper with buffer for visualized logger backends, such as tb or wandb

@@ -1,5 +1,6 @@
 import torch
 import ipdb as pdb
+import ray
 import numpy as np
 from ..utils import Config, Logger, setSeed, gather, collect, listStack, reduce
 from ..models import MLP
@@ -10,7 +11,7 @@ from ..envs.CACC import env_fn
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-debug = False
+debug = True
 radius_q = 2
 radius = 1
 # radius for p and pi
@@ -83,7 +84,7 @@ wrappers = {'p_in': pInWrapper,
            'pi_in': piInWrapper}
 agent_args=Config()
 def MultiagentMBPO(**agent_args):
-    agent_args['agent']=MBPO
+    agent_args['agent']=MBPO.remote
     return MultiAgent(**agent_args)
 agent_args.wrappers = wrappers
 agent_args.agent=MultiagentMBPO
@@ -116,4 +117,5 @@ print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args
 # each generated data will be used so many times
 
 setSeed(args.seed)
-RL(logger = Logger(args, mute=debug), device=device, **algo_args._toDict()).run()
+ray.init(ignore_reinit_error = True, num_gpus=1)
+RL(logger = Logger.remote(args, mute=debug), device=device, **algo_args._toDict()).run()
