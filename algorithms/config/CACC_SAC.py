@@ -20,14 +20,13 @@ def main():
     # radius for p and pi
 
     algo_args = Config()
-    algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
+    algo_args.n_warmup=int(5e4)
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
      for the model on CartPole to learn done...
 
      Only 3e5 samples are needed for parameterized input continous motion control
-     Only 3e4 needed for CACC
     """
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=600
@@ -93,6 +92,7 @@ def main():
     agent_args.pi_args = pi_args
     algo_args.agent_args = agent_args
     args.algo_args = algo_args # do not call toDict() before config is set
+    algo_args.seed = args.seed
 
     setSeed(args.seed)
     ray.init(ignore_reinit_error = True, num_gpus=1)
