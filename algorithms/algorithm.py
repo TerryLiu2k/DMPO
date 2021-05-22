@@ -1,8 +1,9 @@
-import ipdb as pdb
+from ray.util import pdb
 import numpy as np
 import torch
 import gym
 import time
+import ray
 import random
 from tqdm import tqdm
 from .utils import combined_shape
@@ -101,6 +102,7 @@ class RL(object):
         warmup:
             model, q, and policy each warmup for n_warmup steps before used
         """
+        ray.init(ignore_reinit_error = True, num_gpus=1)
 
         agent = agent_args.agent(logger=logger, **agent_args._toDict())
         agent = agent.to(device)
@@ -131,14 +133,14 @@ class RL(object):
             action_dtype = torch.float
             
         self.env_buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
-        if hasattr(agent, "ps"): # use the model buffer if there is a model
+        if hasattr(agent, "updateP"): # use the model buffer if there is a model
             self.buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
         else:
             self.buffer = self.env_buffer  
 
         # warmups
         self.n_warmup = n_warmup
-        if hasattr(agent, "ps"):
+        if hasattr(agent, "updateP"):
             self.q_update_start = n_warmup + start_step
             # p and q starts at the same time, since q update also need p
             # warmup after loading a checkpoint, sicne I do not store replay buffer
@@ -155,7 +157,7 @@ class RL(object):
         self.p_update_steps = 1
         self.q_update_steps = 1
         self.pi_update_steps = 1
-        if hasattr(agent, "ps"):
+        if hasattr(agent, "updateP"):
             self.branch = agent_args.p_args.branch
             self.refresh_interval = self.agent_args.p_args.refresh_interval
             self.p_update_interval = p_args.update_interval
@@ -163,7 +165,7 @@ class RL(object):
                 self.p_update_steps = int(1/self.p_update_interval)
                 self.p_update_interval = 1
 
-        if hasattr(agent, "pi"):
+        if hasattr(agent, "updatePi"):
             self.pi_update_interval = pi_args.update_interval
             if self.pi_update_interval < 1:
                 self.pi_update_steps = int(1/self.pi_update_interval)
@@ -204,17 +206,17 @@ class RL(object):
         env_buffer, buffer = self.env_buffer, self.buffer
         t = self.t
         # Update handling
-        if hasattr(agent, "ps") and (t % self.p_update_interval) == 0 and t>batch_size:
+        if hasattr(agent, "updateP") and (t % self.p_update_interval) == 0 and t>batch_size:
             for i in range(self.p_update_steps):
                 batch = env_buffer.sampleBatch(batch_size)
                 agent.updateP(**batch)
 
-        if hasattr(agent, "q1") and t>self.q_update_start and t % self.q_update_interval == 0:
+        if hasattr(agent, "updateQ") and t>self.q_update_start and t % self.q_update_interval == 0:
             for i in range(self.q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(**batch)
 
-        if hasattr(agent, "pi") and t>self.pi_update_start and t % self.pi_update_interval == 0:
+        if hasattr(agent, "updatePi") and t>self.pi_update_start and t % self.pi_update_interval == 0:
             for i in range(self.pi_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updatePi(**batch)
@@ -243,7 +245,6 @@ class RL(object):
     def step(self):
         env = self.env
         state = env.state
-        pdb.set_trace()
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
         eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
         self.agent.setEps(np.clip(eps, 0, 1))
@@ -269,13 +270,14 @@ class RL(object):
         
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
+        pdb.set_trace()
         last_save = 0
         pbar = iter(tqdm(range(int(1e8))))
         for t in range(self.start_step, self.n_step): 
             next(pbar)
             self.t = t
             self.step()
-            if hasattr(self.agent, "ps") and t >=self.n_warmup+self.start_step \
+            if hasattr(self.agent, "updateP") and t >=self.n_warmup+self.start_step \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
                 self.roll()
                 

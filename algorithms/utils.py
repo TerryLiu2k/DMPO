@@ -189,7 +189,6 @@ class TabularLogger(object):
         if commit:
             print(1)
          
-@ray.remote
 class Logger(object):
     """
     A logger wrapper with buffer for visualized logger backends, such as tb or wandb

@@ -1,9 +1,9 @@
 from copy import deepcopy
 from torch.multiprocessing import Pool, Process, set_start_method
 import ray
-
 from .utils import dictSelect, dictSplit, listStack, parallelEval
 from .models import *
+from ray.util import pdb
 
 """
     Not implemented yet:
@@ -267,7 +267,6 @@ class SAC(QLearning):
                         p_targ.data.mul_(1 - self.target_sync_rate)
                         p_targ.data.add_(self.target_sync_rate * p.data)
         
-@ray.remote(num_gpus = 1/8)
 class MBPO(SAC):
     def __init__(self, env_fn, logger, p_args, **kwargs):
         """
@@ -312,6 +311,36 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
+@ray.remote(num_gpus = 1/8)
+class Worker(object):
+    """
+    A ray actor wrapper class for multiprocessing
+    """
+    def __init__(self, fn, args):
+        self.instance = fn(**args)
+        
+    def roll(self, **data):
+        return self.instance.roll(**data)
+    
+    def updateP(self, **data):
+        self.instance.updateP(**data)
+        
+    def updateQ(self, **data):
+        self.instance.updateQ(**data)
+        
+    def _evalQ(self, **data):
+        return self.instance._evalQ(**data)
+        
+    def updatePi(self, **data):
+        self.instance.updatePi(**data) 
+
+    def act(self, S, deterministic=False, output_distribution=False):
+        return self.instance( S, deterministic, output_distribution)
+    
+    def setEps(self, eps):
+        self.instance.setEps(eps)
+    
+    
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, env_fn, wrappers, **agent_args):
         """
@@ -354,18 +383,19 @@ class MultiAgent(nn.Module):
         self.env= env_fn()
         self.env.reset()
         self.agents = []
+        pdb.set_trace()
         for i in range(n_agent):
-            self.agents.append(agent_fn(logger = logger.child.remote(f"{i}"), env_fn=env_fn, **agent_args))
+            agent = Worker.remote(agent_fn, logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args)
+            self.agents.append(agent)
         wrappers['p_out'] = listStack
         # (s, r, d)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
         # (a)
         self.wrappers = wrappers
-        for attr in ['ps', 'q1', 'pi']:
-            if hasattr(self.agents[0], attr):
-                setattr(self, attr, True)
-        self.pool = None #Pool(n_agent)
-        if hasattr(self.agents[0], 'ps'):
+        for attr in ['updateP', 'updateQ', 'updatePi']:
+            if not hasattr(self.agents[0], attr):
+                delattr(self, attr)
+        if hasattr(self, 'ps'):
             self.p_to_predict = agent_args['p_args'].to_predict
         # removed agent parallelism for it does not yield any performance gain
         
