@@ -5,12 +5,13 @@ from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, list
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
-from ..envs.CACC import env_fn
+from ..envs.CACC import CACC_catchup, CACC_slowdown
 import ray
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
+env_fn = CACC_slowdown
 
 
 def main():
@@ -20,7 +21,7 @@ def main():
     # radius for p and pi
 
     algo_args = Config()
-    algo_args.n_warmup=int(2e3) # enough for the model to fill the buffer
+    algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
@@ -124,7 +125,7 @@ def main():
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
     setSeed(args.seed)
-    ray.init(ignore_reinit_error = True, num_gpus=1)
+    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
     logger = LogServer.remote(args, mute=debug)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

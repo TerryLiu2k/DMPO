@@ -118,7 +118,7 @@ class QCritic(nn.Module):
         self.q = q_net(**q_args)
         self.n_embedding = n_embedding
         input_dim = q_args['sizes'][0]
-        if not n_embedding is 0:
+        if n_embedding != 0:
             self.action_embeddings = nn.ModuleList()
             for i in range(n_embedding):
                 self.action_embeddings += [nn.Embedding(self.action_space.n,input_dim)]

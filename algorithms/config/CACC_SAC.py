@@ -5,8 +5,10 @@ from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, list
 from ..models import MLP
 from ..agents import SAC, MultiAgent
 from ..algorithm import RL
-from ..envs.CACC import env_fn
+from ..envs.CACC import CACC_catchup, CACC_slowdown
 import ray
+
+env_fn = CACC_slowdown
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
@@ -95,7 +97,7 @@ def main():
     algo_args.seed = args.seed
 
     setSeed(args.seed)
-    ray.init(ignore_reinit_error = True, num_gpus=1)
+    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
     logger = LogServer.remote(args, mute=debug)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

@@ -70,4 +70,5 @@ class CACCWrapper(gym.Wrapper):
 def CACC_catchup():
     return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini')
 
-env_fn = CACC_catchup
+def CACC_slowdown():
+    return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini')
