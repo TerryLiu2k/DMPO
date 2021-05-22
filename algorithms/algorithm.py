@@ -112,8 +112,10 @@ class RL(object):
         self.env, self.test_env = env_fn(), env_fn()
         s, self.episode_len, self.episode_reward = self.env.reset(), 0, 0
         self.agent_args = agent_args
-        self.p_args, self.pi_args = agent_args.p_args, agent_args.pi_args
+        self.p_args, self.pi_args, self.q_args = agent_args.p_args, agent_args.pi_args, agent_args.q_args
         self.agent = agent
+        group = env_fn.__name__
+        self.name = f"{group}_{agent_args.agent.__name__}_{kwargs['seed']}"
         
         self.batch_size = batch_size
         self.start_step = start_step
@@ -125,7 +127,6 @@ class RL(object):
         
         self.test_interval = test_interval
         self.n_test = n_test
-        
         
         # Experience buffer
         if isinstance(self.env.action_space, gym.spaces.Discrete):
@@ -213,7 +214,7 @@ class RL(object):
                 batch = env_buffer.sampleBatch(batch_size)
                 agent.updateP(**batch)
 
-        if hasattr(agent, "updateQ") and t>self.q_update_start and t % self.q_update_interval == 0:
+        if not self.q_args is None and t>self.q_update_start and t % self.q_update_interval == 0:
             for i in range(self.q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(**batch)
@@ -273,12 +274,13 @@ class RL(object):
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
         last_save = 0
-        pbar = iter(tqdm(range(int(1e8))))
+
+        pbar = iter(tqdm(range(int(1e8)), desc=self.name))
         for t in range(self.start_step, self.n_step): 
             next(pbar)
             self.t = t
             self.step()
-            if hasattr(self.agent, "updateP") and t >=self.n_warmup+self.start_step \
+            if not self.p_args is None and t >=self.n_warmup+self.start_step \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
                 self.roll()
                 

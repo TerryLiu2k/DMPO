@@ -26,8 +26,8 @@ def main():
      bs256lr3e-4, it takes 2e4updates
      for the model on CartPole to learn done...
 
-     Only 3e5 samples are needed for parameterized input continous motion control
-     Only 3e4 needed for CACC
+     Only 3e5 samples are needed for parameterized input continous motion control (refer to MBPO)
+     4e5 is needed fore model free CACC (refer to NeurComm)
     """
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=600
@@ -119,6 +119,8 @@ def main():
     agent_args.pi_args = pi_args
     algo_args.agent_args = agent_args
     args.algo_args = algo_args # do not call toDict() before config is set
+    algo_args.seed = args.seed
+        
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
     setSeed(args.seed)
