@@ -399,10 +399,8 @@ class MultiAgent(nn.Module):
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
         # (a)
         self.wrappers = wrappers
-        for attr in ['updateP', 'updateQ', 'updatePi']:
-            if not hasattr(self.agents[0], attr):
-                delattr(self, attr)
-        if hasattr(self, 'ps'):
+
+        if agent_args['p_args'] is not None:
             self.p_to_predict = agent_args['p_args'].to_predict
         # removed agent parallelism for it does not yield any performance gain
         

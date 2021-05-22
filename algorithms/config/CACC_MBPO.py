@@ -45,7 +45,11 @@ def main():
     p_args.network = MLP
     p_args.activation=torch.nn.ReLU
     p_args.lr=3e-4
-    p_args.sizes = [5*(1+2*radius), 32, 64, 64] 
+    p_args.sizes = [5*(1+2*radius), 256, 256, 256] 
+    """
+    SAC used 2 layers of width 256 for all experiments,
+    MBPO used 4 layers of width 200 or 400
+    """
     p_args.update_interval=1/10
     p_args.n_embedding = (1+2*radius)
     """
@@ -64,7 +68,7 @@ def main():
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [5*(1+2*radius_q), 32, 64, 5] # 4 actions, dueling q learning
+    q_args.sizes = [5*(1+2*radius_q), 256, 256, 5] # 4 actions, dueling q learning
     q_args.update_interval=1/20
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
@@ -74,7 +78,7 @@ def main():
     pi_args.network = MLP
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
-    pi_args.sizes = [5*(1+2*radius), 32, 64, 4] 
+    pi_args.sizes = [5*(1+2*radius), 256, 256, 4] 
     pi_args.update_interval=1/20
 
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})

@@ -112,6 +112,7 @@ class RL(object):
         self.env, self.test_env = env_fn(), env_fn()
         s, self.episode_len, self.episode_reward = self.env.reset(), 0, 0
         self.agent_args = agent_args
+        self.p_args, self.pi_args = agent_args.p_args, agent_args.pi_args
         self.agent = agent
         
         self.batch_size = batch_size
@@ -125,6 +126,7 @@ class RL(object):
         self.test_interval = test_interval
         self.n_test = n_test
         
+        
         # Experience buffer
         if isinstance(self.env.action_space, gym.spaces.Discrete):
             action_dtype = torch.long
@@ -132,14 +134,14 @@ class RL(object):
             action_dtype = torch.float
             
         self.env_buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
-        if hasattr(agent, "updateP"): # use the model buffer if there is a model
+        if not self.p_args is None: # use the model buffer if there is a model
             self.buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
         else:
             self.buffer = self.env_buffer  
 
         # warmups
         self.n_warmup = n_warmup
-        if hasattr(agent, "updateP"):
+        if not self.p_args is None:
             self.q_update_start = n_warmup + start_step
             # p and q starts at the same time, since q update also need p
             # warmup after loading a checkpoint, sicne I do not store replay buffer
@@ -156,7 +158,7 @@ class RL(object):
         self.p_update_steps = 1
         self.q_update_steps = 1
         self.pi_update_steps = 1
-        if hasattr(agent, "updateP"):
+        if not self.p_args is None:
             self.branch = agent_args.p_args.branch
             self.refresh_interval = self.agent_args.p_args.refresh_interval
             self.p_update_interval = p_args.update_interval
@@ -164,7 +166,7 @@ class RL(object):
                 self.p_update_steps = int(1/self.p_update_interval)
                 self.p_update_interval = 1
 
-        if hasattr(agent, "updatePi"):
+        if not self.pi_args is None:
             self.pi_update_interval = pi_args.update_interval
             if self.pi_update_interval < 1:
                 self.pi_update_steps = int(1/self.pi_update_interval)
@@ -206,7 +208,7 @@ class RL(object):
         env_buffer, buffer = self.env_buffer, self.buffer
         t = self.t
         # Update handling
-        if hasattr(agent, "updateP") and (t % self.p_update_interval) == 0 and t>batch_size:
+        if not self.p_args is None and (t % self.p_update_interval) == 0 and t>batch_size:
             for i in range(self.p_update_steps):
                 batch = env_buffer.sampleBatch(batch_size)
                 agent.updateP(**batch)
@@ -216,7 +218,7 @@ class RL(object):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(**batch)
 
-        if hasattr(agent, "updatePi") and t>self.pi_update_start and t % self.pi_update_interval == 0:
+        if not self.pi_args is None and t>self.pi_update_start and t % self.pi_update_interval == 0:
             for i in range(self.pi_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updatePi(**batch)
