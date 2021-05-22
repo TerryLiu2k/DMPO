@@ -23,10 +23,16 @@ Features:
     * Logger with a local buffer and a remote hosted dashboard
     * Easy to control log period (wall time)
     * Logger hierarchy scaling to multiagent and multiprocess environments
+    * Multiprocessing
 * Visualization of environments
+* Multiprocessing
+    * The agents run in parallel in their own process
 
 Interface:
 The state, reward, done should all be numpy arrays
 
 Example:
-> python -c "import algorithms.config.SAC_CartPole"
+```python
+from algorithms.config.CACC_MBPO import main
+main()
+```

@@ -5,7 +5,7 @@ import gym
 import time
 import ray
 import random
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from .utils import combined_shape
 
 class ReplayBuffer:
@@ -102,7 +102,6 @@ class RL(object):
         warmup:
             model, q, and policy each warmup for n_warmup steps before used
         """
-        ray.init(ignore_reinit_error = True, num_gpus=1)
 
         agent = agent_args.agent(logger=logger, **agent_args._toDict())
         agent = agent.to(device)
@@ -179,7 +178,7 @@ class RL(object):
     def test(self):
         returns = []
         lengths = []
-        for i in range(self.n_test):
+        for i in trange(self.n_test):
             test_env = self.test_env
             test_env.reset()
             d, ep_ret, ep_len = np.array([False]), 0, 0

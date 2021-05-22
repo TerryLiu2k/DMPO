@@ -343,6 +343,9 @@ class Worker(object):
     def setEps(self, eps):
         self.instance.setEps(eps)
     
+    def save(self, info=None):
+        self.instance.save(info)
+    
     
 class MultiAgent(nn.Module):
     def __init__(self, n_agent, env_fn, wrappers, **agent_args):
@@ -482,4 +485,4 @@ class MultiAgent(nn.Module):
         parallelEval(self.agents, 'setEps', [{'eps': eps}]*len(self.agents))
         
     def save(self, info=None):
-        parallelEval(self.agents, 'save', [{info}]*len(self.agents))
+        parallelEval(self.agents, 'save', [{'info': info}]*len(self.agents))

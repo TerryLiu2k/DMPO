@@ -1,11 +1,12 @@
 import torch
 import ipdb as pdb
 import numpy as np
-from ..utils import Config, Logger, setSeed, gather, collect, listStack, reduce
+from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, listStack, reduce
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
 from ..envs.CACC import env_fn
+import ray
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
@@ -117,6 +118,7 @@ def main():
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
     setSeed(args.seed)
-    logger = LogServer(args, mute=debug)
+    ray.init(ignore_reinit_error = True, num_gpus=1)
+    logger = LogServer.remote(args, mute=debug)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

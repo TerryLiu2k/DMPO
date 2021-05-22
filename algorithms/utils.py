@@ -183,15 +183,16 @@ class LogClient(object):
     """
     def __init__(self, server, prefix=""):
         self.buffer = {}
-        self.prefix = prefix
         if isinstance(server, LogClient):
-            server = server.server
             prefix = f"{server.prefix}/{prefix}"
-        self.log_period = server.args.log_period
+            server = server.server
+        self.server = server
+        self.prefix = prefix
+        self.log_period = ray.get(server.getArgs.remote()).log_period
         self.last_log = 0
         
     def child(self, prefix=""):
-        return LogClient(prefix, self)
+        return LogClient(self, prefix)
         
     def flush(self):
         ray.get(self.server.flush.remote(self))
@@ -234,11 +235,13 @@ class LogClient(object):
                     self.buffer[key] = data[key]
 
         # uploading
-        if not self.mute and time.time()>self.log_period+self.last_log:
+        if time.time()>self.log_period+self.last_log:
             self.flush()
 
     def save(self, model, info=None):
-        ray.get(self.server.save.remote({self.prefix: model.state_dict()}, info))
+        state_dict = model.state_dict()
+        state_dict = {k: state_dict[k].cpu() for k in state_dict}
+        ray.get(self.server.save.remote({self.prefix: state_dict}, info))
 
             
 
@@ -250,37 +253,43 @@ class LogServer(object):
     
     It should not be directly invoked, since we want to hide the implementation detail (.log.remote)
     Wrap it with prefix="" to get the root logger
+    
+    It also keeps track of the global step
     """
     def __init__(self, args, mute=False):
         self.group = args.algo_args.env_fn.__name__
         self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
         args.name = self.name
         if not mute:
-            if root is None:
-                run=wandb.init(
-                    project="RL",
-                    config=args._toDict(recursive=True),
-                    name=self.name,
-                    group=self.group,
-                )
-                self.logger = run
-                self.writer = SummaryWriter(log_dir=f"runs/{self.name}")
-                self.writer.add_text("config", f"{args._toDict(recursive=True)}")
-            else:
-                self.logger = root.logger
-                self.writer = root.writer
+            run=wandb.init(
+                project="RL",
+                config=args._toDict(recursive=True),
+                name=self.name,
+                group=self.group,
+            )
+            self.logger = run
+            self.writer = SummaryWriter(log_dir=f"runs/{self.name}")
+            self.writer.add_text("config", f"{args._toDict(recursive=True)}")
+
         self.mute = mute
         self.args = args
         self.save_period = args.save_period
         self.last_save = time.time()
         self.state_dict = {}
+        self.step = 0
+        self.step_key = 'interaction'
+        
+    def getArgs(self):
+        return self.args
             
     def flush(self, logger=None):
-        if logger = None:
+        if logger is None:
             logger = self
         buffer = logger.buffer
         data = {}
         for key in buffer:
+            if key == self.step_key:
+                self.step = buffer[key]
             log_key = logger.prefix+"/"+key
             while log_key[0] == '/':
                  # removes the first slash, to be wandb compatible
@@ -289,11 +298,11 @@ class LogServer(object):
 
             if isinstance(data[log_key], torch.Tensor) and len(data[log_key].shape)>0 or\
             isinstance(data[log_key], np.ndarray) and len(data[log_key].shape)> 0:
-                self.writer.add_histogram(log_key, data[log_key], self.buffer[self.step_key])
+                self.writer.add_histogram(log_key, data[log_key], self.step)
             else:
-                self.writer.add_scalar(log_key, data[log_key], self.buffer[self.step_key])
+                self.writer.add_scalar(log_key, data[log_key], self.step)
 
-        self.logger.log(data=data, step =self.buffer[self.step_key], commit=False)
+        self.logger.log(data=data, step =self.step, commit=False)
         # "warning: step must only increase "commit = True
         # because wandb assumes step must increase per commit
         self.last_log = time.time()
@@ -302,7 +311,7 @@ class LogServer(object):
         self.state_dict.update(state_dict)
         if time.time() - self.last_save >= self.save_period:
             exists_or_mkdir(f"checkpoints/{self.name}")
-            filename = f"{self.buffer[self.step_key]}_{info}.pt"
+            filename = f"{self.step}_{info}.pt"
             if not self.mute:
                 with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:
                     torch.save(self.state_dict, f)
