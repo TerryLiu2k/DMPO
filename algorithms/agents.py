@@ -38,7 +38,7 @@ class QLearning(nn.Module):
             q_net is the network class
         """
         super().__init__()
-        self.logger = logger.child("QLearningAgent")
+        self.logger = logger.child("agent")
         self.gamma = gamma
         self.target_sync_rate=target_sync_rate
         self.eps = eps
@@ -121,6 +121,9 @@ class QLearning(nn.Module):
         
     def save(self, info=None):
         self.logger.save(self, info)
+        
+    def load(self, state_dict):
+        self.load_state_dict(state_dict[self.logger.prefix])
 
 class SAC(QLearning):
     """ Actor Critic (Q function) """
@@ -129,13 +132,11 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
-        self.logger = logger.child("agent")
         
         self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         self.target_entropy = target_entropy
         
-        self.eps = 1 # linearly decrease to 0,
-        #switching from 1 to 0 in a sudden causes nan on some tasks
+        self.eps = 0 
         self.action_space = env_fn().action_space
         if isinstance(self.action_space, Box): #continous
             self.pi = SquashedGaussianActor(**pi_args._toDict())
@@ -276,8 +277,6 @@ class MBPO(SAC):
             q_net is the network class
         """
         super().__init__(logger, env_fn, **kwargs)
-        logger = logger.child("agent")
-        self.logger = logger
         self.n_p = p_args.n_p
         if isinstance(self.action_space, Box): #continous
             ps = [None for i in range(self.n_p)]
@@ -345,6 +344,9 @@ class Worker(object):
     
     def save(self, info=None):
         self.instance.save(info)
+        
+    def load(self, state_dict):
+        self.instance.load(state_dict)
     
     
 class MultiAgent(nn.Module):
@@ -484,3 +486,10 @@ class MultiAgent(nn.Module):
         
     def save(self, info=None):
         parallelEval(self.agents, 'save', [{'info': info}]*len(self.agents))
+        ray.get(self.logger.server.save.remote(flush=True))
+        
+    def load(self, path):
+        with open(path, "rb") as file:
+            dic = torch.load(file)
+        parallelEval(self.agents, 'load', [{'state_dict': dic}]*len(self.agents))
+        print(f"checkpointed loaded from {path}")

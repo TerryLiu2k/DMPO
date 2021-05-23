@@ -1,7 +1,6 @@
 import numpy as np
 import ipdb as pdb
 import itertools
-import scipy.signal
 from gym.spaces import Box, Discrete
 import random
 

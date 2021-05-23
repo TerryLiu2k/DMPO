@@ -5,17 +5,15 @@ from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, list
 from ..models import MLP
 from ..agents import MBPO, MultiAgent
 from ..algorithm import RL
-from ..envs.CACC import CACC_catchup, CACC_slowdown
 import ray
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
 """
-env_fn = CACC_slowdown
 
 
-def main():
-    debug = False
+def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=None):
+    
     radius_q = 2
     radius = 1
     # radius for p and pi
@@ -32,24 +30,29 @@ def main():
     """
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=600
-    algo_args.test_interval = int(2e3)
+    algo_args.test_interval = int(1e3)
     algo_args.batch_size=256 # the same as MBPO
     algo_args.n_step=int(1e8)
     algo_args.n_test = 10
+    algo_args.init_checkpoint = init_checkpoint
     if debug:
         algo_args.batch_size = 4
         algo_args.max_ep_len=2
         algo_args.replay_size=1
         algo_args.n_warmup=1
+    if test:
+        algo_args.n_warmup = 0
+        algo_args.n_test = 50
 
     p_args=Config()
     p_args.network = MLP
     p_args.activation=torch.nn.ReLU
     p_args.lr=3e-4
-    p_args.sizes = [5*(1+2*radius), 256, 256, 256] 
+    p_args.sizes = [5*(1+2*radius), 64, 64, 64] 
     """
     SAC used 2 layers of width 256 for all experiments,
     MBPO used 4 layers of width 200 or 400
+    NeurComm used 1 layer LSTM of width 64
     """
     p_args.update_interval=1/10
     p_args.n_embedding = (1+2*radius)
@@ -69,7 +72,7 @@ def main():
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [5*(1+2*radius_q), 256, 256, 5] # 4 actions, dueling q learning
+    q_args.sizes = [5*(1+2*radius_q), 64, 64, 5] # 4 actions, dueling q learning
     q_args.update_interval=1/20
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
@@ -79,18 +82,17 @@ def main():
     pi_args.network = MLP
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
-    pi_args.sizes = [5*(1+2*radius), 256, 256, 4] 
+    pi_args.sizes = [5*(1+2*radius), 64, 64, 4] 
     pi_args.update_interval=1/20
 
+    agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
     qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius_q)})
     piInWrapper = collect({'s': gather(radius), 'q': reduce(radius_q)})
-
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,
                'pi_in': piInWrapper}
-    agent_args=Config()
     def MultiagentMBPO(**agent_args):
         agent_args['agent']=MBPO
         return MultiAgent(**agent_args)
@@ -106,15 +108,16 @@ def main():
     # sync rate per update = update interval/target sync interval
 
     args = Config()
-    device = 0
     args.save_period=1800 # in seconds
     args.log_period=int(20)
-    args.seed=np.random.randint(65536)
+    if  seed is None:
+        seed = np.random.randint(65536)
+    args.seed = seed
+    args.test = test
 
     q_args.env_fn = env_fn
     agent_args.env_fn = env_fn
     algo_args.env_fn = env_fn
-
     agent_args.p_args = p_args
     agent_args.q_args = q_args
     agent_args.pi_args = pi_args
@@ -124,8 +127,7 @@ def main():
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    setSeed(args.seed)
     ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
-    logger = LogServer.remote(args, mute=debug)
+    logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

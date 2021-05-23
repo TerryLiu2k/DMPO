@@ -39,6 +39,7 @@ class CACCWrapper(gym.Wrapper):
         return state
     
     def state2Reward(self, state):
+        # accepts a (gpu) tensor
         reward, done =  self.env.state2Reward(state)
         return (reward+200)/200, done
     

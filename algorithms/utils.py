@@ -169,6 +169,8 @@ class LogClient(object):
         all None valued keys are counters
         this feature is helpful when logging from model interior
         since the model should be step-agnostic
+    Sets seed for each process
+    Centralized saving
     economic logging
         stores the values, log once per log_period
     syntactic sugar
@@ -190,6 +192,7 @@ class LogClient(object):
         self.prefix = prefix
         self.log_period = ray.get(server.getArgs.remote()).log_period
         self.last_log = 0
+        setSeed(ray.get(server.getArgs.remote()).seed)
         
     def child(self, prefix=""):
         return LogClient(self, prefix)
@@ -243,8 +246,6 @@ class LogClient(object):
         state_dict = {k: state_dict[k].cpu() for k in state_dict}
         ray.get(self.server.save.remote({self.prefix: state_dict}, info))
 
-            
-
 @ray.remote
 class LogServer(object):
     """
@@ -283,6 +284,8 @@ class LogServer(object):
         return self.args
             
     def flush(self, logger=None):
+        if self.mute:
+            return None
         if logger is None:
             logger = self
         buffer = logger.buffer
@@ -307,9 +310,10 @@ class LogServer(object):
         # because wandb assumes step must increase per commit
         self.last_log = time.time()
         
-    def save(self, state_dict, info=None):
-        self.state_dict.update(state_dict)
-        if time.time() - self.last_save >= self.save_period:
+    def save(self, state_dict=None, info=None, flush=False):
+        if not state_dict is None:
+            self.state_dict.update(state_dict)
+        if flush and time.time() - self.last_save >= self.save_period:
             exists_or_mkdir(f"checkpoints/{self.name}")
             filename = f"{self.step}_{info}.pt"
             if not self.mute:

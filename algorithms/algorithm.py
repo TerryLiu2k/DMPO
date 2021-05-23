@@ -90,10 +90,10 @@ class ReplayBuffer:
 class RL(object):
     def __init__(self, logger, device,
        env_fn, agent_args,
-        n_warmup, batch_size, replay_size,
+        n_warmup, batch_size, replay_size, init_checkpoint,
        max_ep_len, test_interval, n_step, n_test,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
-       checkpoint_dir=None, start_step = 0,
+       start_step = 0,
        **kwargs):
         """ 
         a generic algorithm for single agent model-based actor-critic, 
@@ -104,10 +104,10 @@ class RL(object):
         """
 
         agent = agent_args.agent(logger=logger, **agent_args._toDict())
-        agent = agent.to(device)
-        if not checkpoint_dir is None:
-            agent.load_state_dict(torch.load(f"checkpoints/{checkpoint_dir}/{start_step}.pt"))
+        if not init_checkpoint is None:
+            agent.load(init_checkpoint)
             logger.log(interaction=start_step)
+        agent = agent.to(device)
         
         self.env, self.test_env = env_fn(), env_fn()
         s, self.episode_len, self.episode_reward = self.env.reset(), 0, 0
@@ -142,16 +142,7 @@ class RL(object):
 
         # warmups
         self.n_warmup = n_warmup
-        if not self.p_args is None:
-            self.q_update_start = n_warmup + start_step
-            # p and q starts at the same time, since q update also need p
-            # warmup after loading a checkpoint, sicne I do not store replay buffer
-            self.pi_update_start = n_warmup + start_step
-            self.act_start = 2*n_warmup + start_step
-        else:
-            self.q_update_start = 0 + start_step
-            self.pi_update_start = 0 + start_step
-            self.act_start = n_warmup + start_step
+        # warmup the model before updating pi and q
 
         # update frequency
         p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
@@ -201,6 +192,8 @@ class RL(object):
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)
         self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
+        print(returns)
+        print(f"{self.n_test} episodes average accumulated reward: {returns.mean()}")
         return returns.mean()
         
     def updateAgent(self):
@@ -214,12 +207,12 @@ class RL(object):
                 batch = env_buffer.sampleBatch(batch_size)
                 agent.updateP(**batch)
 
-        if not self.q_args is None and t>self.q_update_start and t % self.q_update_interval == 0:
+        if not self.q_args is None and t>self.n_warmup and t % self.q_update_interval == 0:
             for i in range(self.q_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updateQ(**batch)
 
-        if not self.pi_args is None and t>self.pi_update_start and t % self.pi_update_interval == 0:
+        if not self.pi_args is None and t>self.n_warmup and t % self.pi_update_interval == 0:
             for i in range(self.pi_update_steps):
                 batch = buffer.sampleBatch(batch_size)
                 agent.updatePi(**batch)
@@ -249,8 +242,6 @@ class RL(object):
         env = self.env
         state = env.state
         state = torch.as_tensor(state, dtype=torch.float).to(self.device)
-        eps = (self.act_start - self.t)/(self.act_start - self.pi_update_start)
-        self.agent.setEps(np.clip(eps, 0, 1))
         a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device).unsqueeze(0))    
         a = a.squeeze(0).detach().cpu().numpy()
         # Step the env
@@ -274,19 +265,26 @@ class RL(object):
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
         last_save = 0
-
+        if self.start_step < self.n_warmup:
+            self.agent.setEps(1)
+        else:
+            self.agent.setEps(0)
         pbar = iter(tqdm(range(int(1e8)), desc=self.name))
         for t in range(self.start_step, self.n_step): 
             next(pbar)
             self.t = t
-            self.step()
-            if not self.p_args is None and t >=self.n_warmup+self.start_step \
-                and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
-                self.roll()
-                
-            self.updateAgent()
-                
+            
             if t % self.test_interval == 0:
                 mean_return = self.test()
                 self.agent.save(info = mean_return) # automatically save once per save_period seconds
-        
+                
+            self.step()
+            
+            if not self.p_args is None and t >=self.n_warmup \
+                and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
+                self.roll()
+                
+            if t == self.n_warmup:
+                self.agent.setEps(0)
+                
+            self.updateAgent()        

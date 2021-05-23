@@ -89,7 +89,7 @@ class CACCEnv:
         collision = collision.float()
         rewards = h_rewards + v_rewards + u_rewards
         #rewards = v_rewards
-        rewards = (1-collision)*rewards + (collision *-self.G * np.ones(self.n_agent))
+        rewards = (1-collision)*rewards + (collision *-self.G * torch.ones(self.n_agent))
 
         rewards = rewards.to(device)
         collision = collision.to(device)
