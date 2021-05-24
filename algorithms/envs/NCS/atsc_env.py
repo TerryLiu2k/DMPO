@@ -9,6 +9,7 @@ import subprocess
 from sumolib import checkBinary
 import time
 import traci
+import pdb
 import xml.etree.cElementTree as ET
 
 DEFAULT_PORT = 8000
@@ -100,6 +101,7 @@ class TrafficSimulator:
         self._init_map()
         self.init_data(is_record, record_stats, output_path)
         self.init_test_seeds(test_seeds)
+        pdb.set_trace()
         self._init_sim(self.seed)
         self._init_nodes()
         self.terminate()
