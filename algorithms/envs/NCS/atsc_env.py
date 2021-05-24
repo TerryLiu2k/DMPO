@@ -101,7 +101,6 @@ class TrafficSimulator:
         self._init_map()
         self.init_data(is_record, record_stats, output_path)
         self.init_test_seeds(test_seeds)
-        pdb.set_trace()
         self._init_sim(self.seed)
         self._init_nodes()
         self.terminate()
@@ -349,7 +348,6 @@ class TrafficSimulator:
             app = 'sumo'
         command = [checkBinary(app), '-c', sumocfg_file]
         command += ['--seed', str(seed)]
-        command += ['--remote-port', str(self.port)]
         command += ['--no-step-log', 'True']
         command += ['--time-to-teleport', '600'] # long teleport for safety
         command += ['--no-warnings', 'True']
@@ -358,10 +356,11 @@ class TrafficSimulator:
         if self.is_record:
             command += ['--tripinfo-output',
                         self.output_path + ('%s_%s_trip.xml' % (self.name, self.agent))]
-        subprocess.Popen(command)
+        traci.start(command)
         # wait 1s to establish the traci server
-        time.sleep(1)
-        self.sim = traci.connect(port=self.port)
+        time.sleep(5)
+        self.sim = traci
+        
 
     def _init_sim_config(self):
         # needs to be overwriteen
