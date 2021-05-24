@@ -33,7 +33,7 @@ from ray.util import pdb
 
 class QLearning(nn.Module):
     """ Double Dueling clipped (from TD3) Q Learning"""
-    def __init__(self, logger, env_fn, q_args, gamma, eps, target_sync_rate, **kwargs):
+    def __init__(self, logger, env, q_args, gamma, eps, target_sync_rate, **kwargs):
         """
             q_net is the network class
         """
@@ -42,7 +42,7 @@ class QLearning(nn.Module):
         self.gamma = gamma
         self.target_sync_rate=target_sync_rate
         self.eps = eps
-        self.action_space=env_fn().action_space
+        self.action_space=env.action_space
 
         self.q1 = QCritic(**q_args._toDict())
         self.q2 = QCritic(**q_args._toDict())
@@ -127,17 +127,17 @@ class QLearning(nn.Module):
 
 class SAC(QLearning):
     """ Actor Critic (Q function) """
-    def __init__(self, logger, env_fn, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs):
+    def __init__(self, logger, env, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs):
         """
             q_net is the network class
         """
-        super().__init__(logger, env_fn, q_args, gamma, 0, target_sync_rate, **kwargs)
+        super().__init__(logger, env, q_args, gamma, 0, target_sync_rate, **kwargs)
         
         self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         self.target_entropy = target_entropy
         
         self.eps = 0 
-        self.action_space = env_fn().action_space
+        self.action_space = env.action_space
         if isinstance(self.action_space, Box): #continous
             self.pi = SquashedGaussianActor(**pi_args._toDict())
         else:
@@ -272,16 +272,16 @@ class SAC(QLearning):
                         p_targ.data.add_(self.target_sync_rate * p.data)
         
 class MBPO(SAC):
-    def __init__(self, env_fn, logger, p_args, **kwargs):
+    def __init__(self, env, logger, p_args, **kwargs):
         """
             q_net is the network class
         """
-        super().__init__(logger, env_fn, **kwargs)
+        super().__init__(logger, env, **kwargs)
         self.n_p = p_args.n_p
         if isinstance(self.action_space, Box): #continous
             ps = [None for i in range(self.n_p)]
         else:
-            ps = [ParameterizedModel(env_fn, logger,**p_args._toDict()) for i in range(self.n_p)]
+            ps = [ParameterizedModel(env, logger,**p_args._toDict()) for i in range(self.n_p)]
         self.ps = nn.ModuleList(ps)
         self.p_params = itertools.chain(*[item.parameters() for item in self.ps])
         self.p_optimizer = Adam(self.p_params, lr=p_args.lr)
@@ -350,7 +350,7 @@ class Worker(object):
     
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, env_fn, wrappers, **agent_args):
+    def __init__(self, n_agent, env, wrappers, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -388,13 +388,12 @@ class MultiAgent(nn.Module):
         agent_fn = agent_args['agent']
         logger = agent_args.pop('logger')
         self.logger = logger
-        self.env= env_fn()
-        self.env.reset()
+        self.env= env
         self.agents = []
         if not agent_args['p_args'] is None:
             self.p_to_predict = agent_args['p_args'].to_predict
         for i in range(n_agent):
-            agent = Worker.remote(agent_fn=agent_fn, logger = logger.child(f"{i}"), env_fn=env_fn, **agent_args)
+            agent = Worker.remote(agent_fn=agent_fn, logger = logger.child(f"{i}"), env=env, **agent_args)
             self.agents.append(agent)
         wrappers['p_out'] = listStack
         # (s, r, d)

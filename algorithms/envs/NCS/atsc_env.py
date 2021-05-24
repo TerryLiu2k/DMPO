@@ -358,7 +358,7 @@ class TrafficSimulator:
                         self.output_path + ('%s_%s_trip.xml' % (self.name, self.agent))]
         traci.start(command)
         # wait 1s to establish the traci server
-        time.sleep(5)
+        time.sleep(1)
         self.sim = traci
         
 
@@ -425,6 +425,7 @@ class TrafficSimulator:
                 if state_name == 'wave':
                     cur_state = []
                     for k, ild in enumerate(node.ilds_in):
+                        pdb.set_trace()
                         if self.name == 'atsc_real_net':
                             cur_wave = 0
                             for ild_seg in ild:

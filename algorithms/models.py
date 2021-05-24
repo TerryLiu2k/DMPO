@@ -35,10 +35,10 @@ class ParameterizedModel(nn.Module):
         the sizes argument does not include the dim of the state
         n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env_fn, logger, n_embedding=1, to_predict="srd", **net_args):
+    def __init__(self, env, logger, n_embedding=1, to_predict="srd", **net_args):
         super().__init__()
         self.logger = logger.child("p")
-        self.action_space=env_fn().action_space
+        self.action_space=env.action_space
         self.observation_space = env_fn().observation_space
         input_dim = net_args['sizes'][0]
         output_dim = net_args['sizes'][-1]
@@ -110,10 +110,10 @@ class QCritic(nn.Module):
     n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     only used for decentralized multiagent, assumes the first action is local (consistent with gather() in utils)
     """
-    def __init__(self, env_fn, n_embedding=0, **q_args):
+    def __init__(self, env, n_embedding=0, **q_args):
         super().__init__()
         q_net = q_args['network']
-        self.action_space=env_fn().action_space
+        self.action_space=env.action_space
         self.q = q_net(**q_args)
         self.n_embedding = n_embedding
         input_dim = q_args['sizes'][0]

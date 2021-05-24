@@ -73,6 +73,58 @@ def reduce(k):
     else:
         return lambda x: x
     
+def gather2D(shape, k):
+    def _gather(tensor):
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+        tensor = tensor.view(b, shape[0], shape[1], depth)
+
+        result = torch.zeros((b, n, k*k*depth), dtype = tensor.dtype, device=tensor.device)
+        
+        for x in shape[0]:
+            for y in shape[1]:
+                for x1 in range(x-k, x+k+1):
+                    if x1<0 or x1>=shape[0]:
+                        continue
+                    for y1 in range(y-k, y+k+1):
+                        if y1<0 or y1>=shape[1]:
+                            continue
+                        start = (x1-x)*shape[1]+ (y1-y)
+                        start = (start+k*k) % (k*k)
+                        result[:, x*shape[1]+y, start*depth: start*depth+depth] = tensor[:, x1, y1]
+        return result
+    if k > 0:
+        return _gather
+    else:
+        return lambda x: x
+    
+def reduce2D(shape, k):
+    def _reduce(tensor):
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+        tensor = tensor.view(b, shape[0], shape[1], depth)
+
+        result = torch.zeros((b, n, depth), dtype = tensor.dtype, device=tensor.device)
+        
+        for x in shape[0]:
+            for y in shape[1]:
+                for x1 in range(x-k, x+k+1):
+                    if x1<0 or x1>=shape[0]:
+                        continue
+                    for y1 in range(y-k, y+k+1):
+                        if y1<0 or y1>=shape[1]:
+                            continue
+                        start = (x1-x)*shape[1]+ (y1-y)
+                        start = (start+k*k) % (k*k)
+                        result[:, x*shape[1]+y] += tensor[:, x1, y1]
+        return result
+    if k > 0:
+        return _reduce
+    else:
+        return lambda x: x
+    
 def collect(dic={}):
     """
     selects a different gather radius (more generally, collective operation) for each data key
