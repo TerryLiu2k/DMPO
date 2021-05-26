@@ -1,4 +1,4 @@
-from ray.util import pdb
+import ipdb as pdb
 import numpy as np
 import torch
 import gym
@@ -14,12 +14,11 @@ class ReplayBuffer:
     Utilizes lazy frames of FrameStack to save memory.
     """
 
-    def __init__(self, max_size, device, action_dtype):
+    def __init__(self, max_size, action_dtype):
         self.max_size = max_size
         self.data = []
         self.ptr = 0
         self.unread = 0
-        self.device = device
         self.action_dtype = action_dtype
 
     def store(self, obs, act, rew, next_obs, done):
@@ -49,7 +48,7 @@ class ReplayBuffer:
             else: # done should be float for convenience
                 dtype = torch.float
             lst = [torch.as_tensor(dic[key], dtype=dtype) for dic in raw_batch]
-            batch[key] = torch.stack(lst).to(self.device)
+            batch[key] = torch.stack(lst)
 
         return batch
     
@@ -75,7 +74,7 @@ class ReplayBuffer:
             else: # done should be float for convenience
                 dtype = torch.float
             lst = [torch.as_tensor(dic[key], dtype=dtype) for dic in raw_batch]
-            batch[key] = torch.stack(lst).to(self.device)
+            batch[key] = torch.stack(lst)
         return batch
     
     def clear(self):
@@ -88,8 +87,8 @@ class ReplayBuffer:
 
 
 class RL(object):
-    def __init__(self, logger, device,
-       env_fn, agent_args,
+    def __init__(self, logger,
+       env_fn, agent_args, device,
         n_warmup, batch_size, replay_size, init_checkpoint,
        max_ep_len, test_interval, n_step, n_test,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
@@ -102,20 +101,18 @@ class RL(object):
         warmup:
             model, q, and policy each warmup for n_warmup steps before used
         """
-
-        agent = agent_args.agent(logger=logger, **agent_args._toDict())
+        self.env, self.test_env = env_fn(), env_fn()
+        
+        agent = agent_args.agent(logger=logger, device=device, env=self.env, **agent_args._toDict())
         if not init_checkpoint is None:
             agent.load(init_checkpoint)
-            logger.log(interaction=start_step)
-        agent = agent.to(device)
-        
-        self.env, self.test_env = env_fn(), env_fn()
+            logger.log(interaction=start_step)        
+
         s, self.episode_len, self.episode_reward = self.env.reset(), 0, 0
         self.agent_args = agent_args
         self.p_args, self.pi_args, self.q_args = agent_args.p_args, agent_args.pi_args, agent_args.q_args
         self.agent = agent
-        group = env_fn.__name__
-        self.name = f"{group}_{agent_args.agent.__name__}_{kwargs['seed']}"
+        self.name = logger.getArgs().name
         
         self.batch_size = batch_size
         self.start_step = start_step
@@ -123,7 +120,6 @@ class RL(object):
         self.max_ep_len = max_ep_len
 
         self.logger = logger
-        self.device=device
         
         self.test_interval = test_interval
         self.n_test = n_test
@@ -134,9 +130,9 @@ class RL(object):
         else:
             action_dtype = torch.float
             
-        self.env_buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
+        self.env_buffer = ReplayBuffer(max_size=replay_size, action_dtype=action_dtype)
         if not self.p_args is None: # use the model buffer if there is a model
-            self.buffer = ReplayBuffer(max_size=replay_size, device=device, action_dtype=action_dtype)
+            self.buffer = ReplayBuffer(max_size=replay_size, action_dtype=action_dtype)
         else:
             self.buffer = self.env_buffer  
 
@@ -178,7 +174,7 @@ class RL(object):
             d, ep_ret, ep_len = np.array([False]), 0, 0
             while not(d.all() or (ep_len == self.max_ep_len)):
                 # Take deterministic actions at test time 
-                state = torch.as_tensor(test_env.state, dtype=torch.float).to(self.device)
+                state = torch.as_tensor(test_env.state, dtype=torch.float)
                 action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
                 # [b=1, (n_agent), ...]
                 _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
@@ -186,8 +182,8 @@ class RL(object):
                 ep_ret += r.mean()
                 ep_len += 1
             if hasattr(test_env, 'rescaleReward'):
-                raw_ret = test_env.rescaleReward(ep_ret, ep_len)
-            returns += [raw_ret]
+                ep_ret = test_env.rescaleReward(ep_ret, ep_len)
+            returns += [ep_ret]
             lengths += [ep_len]
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)
@@ -241,8 +237,8 @@ class RL(object):
     def step(self):
         env = self.env
         state = env.state
-        state = torch.as_tensor(state, dtype=torch.float).to(self.device)
-        a = self.agent.act(torch.as_tensor(state, dtype=torch.float).to(self.device).unsqueeze(0))    
+        state = torch.as_tensor(state, dtype=torch.float)
+        a = self.agent.act(torch.as_tensor(state, dtype=torch.float).unsqueeze(0))    
         a = a.squeeze(0).detach().cpu().numpy()
         # Step the env
         s1, r, d, _ = env.step(a)

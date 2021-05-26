@@ -9,6 +9,15 @@ import ray
 import time
 from torch.utils.tensorboard import SummaryWriter
 
+def locate(device, *args):
+    lst = []
+    for item in args:
+        if item is None:
+            lst.append(None)
+        else:
+            lst.append(item.to(device))
+    return lst
+
 def parallelEval(agents, func, args):
     """
     expects a list of dicts
@@ -67,6 +76,57 @@ def reduce(k):
                 if j<0 or j>=n:
                     continue
                 result[:, i] += tensor[:, j]
+        return result
+    if k > 0:
+        return _reduce
+    else:
+        return lambda x: x
+    
+def gather2D(shape, k):
+    def _gather(tensor):
+        l = 1+2*k
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+        tensor = tensor.view(b, shape[0], shape[1], depth)
+
+        result = torch.zeros((b, n, l*l*depth), dtype = tensor.dtype, device=tensor.device)
+        
+        for x in range(shape[0]):
+            for y in range(shape[1]):
+                for x1 in range(x-k, x+k+1):
+                    if x1<0 or x1>=shape[0]:
+                        continue
+                    for y1 in range(y-k, y+k+1):
+                        if y1<0 or y1>=shape[1]:
+                            continue
+                        start = (x1-x)*shape[1]+ (y1-y)
+                        start = (start+l*l) % (l*l)
+                        result[:, x*shape[1]+y, start*depth: start*depth+depth] = tensor[:, x1, y1]
+        return result
+    if k > 0:
+        return _gather
+    else:
+        return lambda x: x
+    
+def reduce2D(shape, k):
+    def _reduce(tensor):
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+        tensor = tensor.view(b, shape[0], shape[1], depth)
+
+        result = torch.zeros((b, n, depth), dtype = tensor.dtype, device=tensor.device)
+        
+        for x in range(shape[0]):
+            for y in range(shape[1]):
+                for x1 in range(x-k, x+k+1):
+                    if x1<0 or x1>=shape[0]:
+                        continue
+                    for y1 in range(y-k, y+k+1):
+                        if y1<0 or y1>=shape[1]:
+                            continue
+                        result[:, x*shape[1]+y] += tensor[:, x1, y1]
         return result
     if k > 0:
         return _reduce
@@ -245,6 +305,9 @@ class LogClient(object):
         state_dict = model.state_dict()
         state_dict = {k: state_dict[k].cpu() for k in state_dict}
         ray.get(self.server.save.remote({self.prefix: state_dict}, info))
+        
+    def getArgs(self):
+        return ray.get(self.server.getArgs.remote())
 
 @ray.remote
 class LogServer(object):
@@ -259,7 +322,7 @@ class LogServer(object):
     """
     def __init__(self, args, mute=False):
         self.group = args.algo_args.env_fn.__name__
-        self.name = f"{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
+        self.name = f"{args.name}_{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
         args.name = self.name
         if not mute:
             run=wandb.init(
@@ -304,6 +367,7 @@ class LogServer(object):
                 self.writer.add_histogram(log_key, data[log_key], self.step)
             else:
                 self.writer.add_scalar(log_key, data[log_key], self.step)
+            self.writer.flush()
 
         self.logger.log(data=data, step =self.step, commit=False)
         # "warning: step must only increase "commit = True
