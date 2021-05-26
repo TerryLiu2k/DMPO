@@ -324,11 +324,7 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
 
-<<<<<<< HEAD
 @ray.remote(num_gpus = 1/8, num_cpus=1)
-=======
-@ray.remote(num_gpus = 0, num_cpus=1/2)
->>>>>>> 1069b6c99b09cbdc150a64e2a4284315a4493d3e
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing

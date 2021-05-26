@@ -53,7 +53,8 @@ class CACCEnv:
         v_rewards = -self.a * (self.vs_cur - self.v_star) ** 2
         u_rewards = -self.b * (self.us_cur) ** 2
         collision = self.hs_cur < self.h_min
-        collision[1:] += collision[:-1] # two adjacent cars
+        tmp = collision.copy()
+        collision[:-1] += tmp[1:] # two adjacent cars
         self.collision = collision
         c_rewards = -self.G * collision
         rewards = h_rewards + v_rewards + u_rewards + c_rewards
@@ -83,9 +84,10 @@ class CACCEnv:
         u_rewards = -self.b * (u) ** 2
 
         collision =  h < self.h_min
-        collision = collision.float()
-
-        collision[:, 1:] += collision[:, :-1] # two adjacent cars
+        
+        tmp = collision.clone()
+        collision[:, :-1] += tmp[:, 1:] # two adjacent cars
+        
         c_rewards = -self.G * collision
         rewards = h_rewards + v_rewards + u_rewards + c_rewards
 
@@ -272,8 +274,6 @@ class CACCEnv:
             done = [True]*8
         if self.is_record:
             self._log_control_data(action, global_reward)
-        if done and (self.is_record):
-            self._log_traffic_data()
         return self._get_state(), reward, done, global_reward
 
     def get_fingerprint(self):
