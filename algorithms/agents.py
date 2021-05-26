@@ -44,8 +44,8 @@ class QLearning(nn.Module):
         self.eps = eps
         self.action_space=env.action_space
 
-        self.q1 = QCritic(**q_args._toDict())
-        self.q2 = QCritic(**q_args._toDict())
+        self.q1 = QCritic(env, **q_args._toDict())
+        self.q2 = QCritic(env, **q_args._toDict())
         self.q1_target = deepcopy(self.q1)
         self.q2_target = deepcopy(self.q2)
         for p in self.q1_target.parameters():
@@ -313,13 +313,13 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-@ray.remote(num_gpus = 1/8)
+@ray.remote(num_gpus = 1/13, num_cpus=1/4)
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
     """
     def __init__(self, agent_fn, **args):
-        self.instance = agent_fn(**args).to(torch.device(0))
+        self.instance = agent_fn(**args)
         
     def roll(self, **data):
         return self.instance.roll(**data)

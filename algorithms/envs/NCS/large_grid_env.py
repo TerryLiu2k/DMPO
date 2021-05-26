@@ -12,6 +12,7 @@ import seaborn as sns
 import time
 from .atsc_env import PhaseMap, PhaseSet, TrafficSimulator
 from .envs.large_grid_data.build_file import gen_rou_file
+from gym.spaces import Box, Discrete
 
 sns.set_color_codes()
 
@@ -50,6 +51,10 @@ class LargeGridEnv(TrafficSimulator):
         self.peak_flow1 = config.getint('peak_flow1')
         self.peak_flow2 = config.getint('peak_flow2')
         self.init_density = config.getfloat('init_density')
+        self.action_space = Discrete(5)
+        self.observation_space=Box(0, 1e6, shape=[12])
+        self.reward_range=None
+        self.metadata=None
         super().__init__(config, output_path, is_record, record_stat, port=port)
 
     def _get_node_phase_id(self, node_name):

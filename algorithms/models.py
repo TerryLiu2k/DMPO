@@ -39,7 +39,7 @@ class ParameterizedModel(nn.Module):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env.action_space
-        self.observation_space = env_fn().observation_space
+        self.observation_space = env.observation_space
         input_dim = net_args['sizes'][0]
         output_dim = net_args['sizes'][-1]
         self.n_embedding = n_embedding

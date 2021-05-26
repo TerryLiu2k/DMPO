@@ -85,6 +85,7 @@ class TrafficSimulator:
         self.T = np.ceil(self.episode_length_sec / self.control_interval_sec)
         self.port = DEFAULT_PORT + port
         self.sim_thread = port
+        self.label = str(np.random.randint(999999))
         self.obj = config.get('objective')
         self.data_path = config.get('data_path')
         self.agent = config.get('agent')
@@ -171,6 +172,7 @@ class TrafficSimulator:
         else:
             seed = self.test_seeds[test_ind]
         self._init_sim(seed, gui=gui)
+        traci.switch(self.label)
         self.cur_sec = 0
         self.cur_episode += 1
         # initialize fingerprint
@@ -208,6 +210,7 @@ class TrafficSimulator:
         return state, reward, done, global_reward
 
     def terminate(self):
+        traci.switch(self.label)
         self.sim.close()
 
     def update_fingerprint(self, policy):
@@ -297,6 +300,7 @@ class TrafficSimulator:
         raise NotImplementedError()
 
     def _init_nodes(self):
+        traci.switch(self.label)
         nodes = {}
         tl_nodes = self.sim.trafficlight.getIDList()
         for node_name in self.node_names:
@@ -356,7 +360,9 @@ class TrafficSimulator:
         if self.is_record:
             command += ['--tripinfo-output',
                         self.output_path + ('%s_%s_trip.xml' % (self.name, self.agent))]
-        traci.start(command)
+        print(f"Initializing sumo with label {self.label}")
+        traci.start(command, label = self.label)
+        traci.switch(self.label)
         # wait 1s to establish the traci server
         time.sleep(1)
         self.sim = traci
@@ -382,6 +388,7 @@ class TrafficSimulator:
             self.n_s_ls.append(num_wait + num_wave)
 
     def _measure_reward_step(self):
+        traci.switch(self.label)
         rewards = []
         for node_name in self.node_names:
             queues = []
@@ -419,13 +426,13 @@ class TrafficSimulator:
         return np.array(rewards)
 
     def _measure_state_step(self):
+        traci.switch(self.label)
         for node_name in self.node_names:
             node = self.nodes[node_name]
             for state_name in self.state_names:
                 if state_name == 'wave':
                     cur_state = []
                     for k, ild in enumerate(node.ilds_in):
-                        pdb.set_trace()
                         if self.name == 'atsc_real_net':
                             cur_wave = 0
                             for ild_seg in ild:
@@ -464,6 +471,7 @@ class TrafficSimulator:
                     node.wait_state = norm_cur_state
 
     def _measure_traffic_step(self):
+        traci.switch(self.label)
         cars = self.sim.vehicle.getIDList()
         num_tot_car = len(cars)
         num_in_car = self.sim.simulation.getDepartedNumber()
@@ -512,12 +520,14 @@ class TrafficSimulator:
             node.prev_action = 0
 
     def _set_phase(self, action, phase_type, phase_duration):
+        traci.switch(self.label)
         for node_name, a in zip(self.node_names, list(action)):
             phase = self._get_node_phase(a, node_name, phase_type)
             self.sim.trafficlight.setRedYellowGreenState(node_name, phase)
             self.sim.trafficlight.setPhaseDuration(node_name, phase_duration)
 
     def _simulate(self, num_step):
+        traci.switch(self.label)
         # reward = np.zeros(len(self.control_node_names))
         for _ in range(num_step):
             self.sim.simulationStep()
