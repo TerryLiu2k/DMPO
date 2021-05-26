@@ -14,7 +14,7 @@ import ray
 """
 
 
-def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=None):
+def main(env_fn, device, debug=False, name='tmp', test=False, seed=None, init_checkpoint=None):
     
     radius_q = 2
     radius = 1
@@ -44,6 +44,7 @@ def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=Non
         algo_args.max_ep_len=2
         algo_args.replay_size=1
         algo_args.n_warmup=1
+        algo_args.n_test=1
     if test:
         algo_args.n_warmup = 0
         algo_args.n_test = 50
@@ -52,7 +53,7 @@ def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=Non
     p_args.network = MLP
     p_args.activation=torch.nn.ReLU
     p_args.lr=3e-4
-    p_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 64] 
+    p_args.sizes = [12*(1+2*radius)**2, 64, 64, 64] 
     """
     SAC used 2 layers of width 256 for all experiments,
     MBPO used 4 layers of width 200 or 400
@@ -70,7 +71,7 @@ def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=Non
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
-    p_args.to_predict = 's'
+    p_args.to_predict = 'srd'
 
     q_args=Config()
     q_args.network = MLP
@@ -118,6 +119,7 @@ def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=Non
         seed = np.random.randint(65536)
     args.seed = seed
     args.test = test
+    args.name = name
 
     algo_args.env_fn = env_fn
     agent_args.p_args = p_args

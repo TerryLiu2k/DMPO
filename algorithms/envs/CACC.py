@@ -68,7 +68,7 @@ class CACCWrapper(gym.Wrapper):
         
         gets 1 if locally perfect, -4 and done if collision
         """
-        return state, (reward+200)/200, done, None
+        return state, (reward+BIAS)/STD, done, None
         
 
 def CACC_catchup():
