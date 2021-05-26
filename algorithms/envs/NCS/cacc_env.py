@@ -54,6 +54,7 @@ class CACCEnv:
         u_rewards = -self.b * (self.us_cur) ** 2
         collision = self.hs_cur < self.h_min
         collision[1:] += collision[:-1] # two adjacent cars
+        self.collision = collision
         c_rewards = -self.G * collision
         rewards = h_rewards + v_rewards + u_rewards + c_rewards
         return rewards
@@ -81,11 +82,12 @@ class CACCEnv:
         v_rewards = -self.a * (v - self.v_star) ** 2
         u_rewards = -self.b * (u) ** 2
 
-        collision =  torch.min(h, dim=1, keepdim=True)[0] < self.h_min
+        collision =  h < self.h_min
         collision = collision.float()
-        rewards = h_rewards + v_rewards + u_rewards
-        #rewards = v_rewards
-        rewards = (1-collision)*rewards + (collision *-self.G * torch.ones(self.n_agent))
+
+        collision[:, 1:] += collision[:, :-1] # two adjacent cars
+        c_rewards = -self.G * collision
+        rewards = h_rewards + v_rewards + u_rewards + c_rewards
 
         rewards = rewards.to(device)
         collision = collision.to(device)
@@ -219,7 +221,7 @@ class CACCEnv:
             self._init_catchup()
         elif self.name.startswith('slowdown'):
             self._init_slowdown()
-        self.collision = False
+        self.collision = np.zeros(8)
         self.hs_cur = self.hs[0]
         self.vs_cur = self.vs[0]
         self.us_cur = np.zeros(self.n_agent)
@@ -230,49 +232,44 @@ class CACCEnv:
 
     def step(self, action):
         # if collision happens, return -G for all the remaining steps
-        if self.collision:
-            reward = -self.G * np.ones(self.n_agent)
-        else:
-            rl_params = [self.a_map[a] for a in action]
-            hs_next = []
-            vs_next = []
-            self.us_cur = []
-            # update speed
-            for i in range(self.n_agent):
-                # h_g = rl_hgs[i]
-                # u = self._get_accel(i, h_g)
-                cur_alpha, cur_beta = rl_params[i]
-                u = self._get_accel(i, cur_alpha, cur_beta)
-                # apply v, u constraints
-                v_next, u_const = self._constrain_speed(self.vs_cur[i], u)
-                self.us_cur.append(u_const)
-                vs_next.append(v_next)
-            # update headway
-            for i in range(self.n_agent):
-                if i == 0:
-                    v_lead = self.v0s[self.t]
-                    v_lead_next = self.v0s[self.t+1]
-                else:
-                    v_lead = self.vs_cur[i-1]
-                    v_lead_next = vs_next[i-1]
-                v = self.vs_cur[i]
-                v_next = vs_next[i]
-                hs_next.append(self.hs_cur[i] + 0.5*self.dt*(v_lead+v_lead_next-v-v_next))
-            self.hs_cur = np.array(hs_next)
-            self.vs_cur = np.array(vs_next)
-            self.us_cur = np.array(self.us_cur)
-            reward = self._get_reward()
+        rl_params = [self.a_map[a] for a in action]
+        hs_next = []
+        vs_next = []
+        self.us_cur = []
+        # update speed
+        for i in range(self.n_agent):
+            # h_g = rl_hgs[i]
+            # u = self._get_accel(i, h_g)
+            cur_alpha, cur_beta = rl_params[i]
+            u = self._get_accel(i, cur_alpha, cur_beta)
+            # apply v, u constraints
+            v_next, u_const = self._constrain_speed(self.vs_cur[i], u)
+            self.us_cur.append(u_const)
+            vs_next.append(v_next)
+        # update headway
+        for i in range(self.n_agent):
+            if i == 0:
+                v_lead = self.v0s[self.t]
+                v_lead_next = self.v0s[self.t+1]
+            else:
+                v_lead = self.vs_cur[i-1]
+                v_lead_next = vs_next[i-1]
+            v = self.vs_cur[i]
+            v_next = vs_next[i]
+            hs_next.append(self.hs_cur[i] + 0.5*self.dt*(v_lead+v_lead_next-v-v_next))
+        self.hs_cur = np.array(hs_next)
+        self.vs_cur = np.array(vs_next)
+        self.us_cur = np.array(self.us_cur)
+        reward = self._get_reward()
         self.hs.append(self.hs_cur)
         self.vs.append(self.vs_cur)
         self.us.append(self.us_cur)
         self.t += 1
         global_reward = np.sum(reward)
         self.rewards.append(global_reward)
-        done = False
-        if self.collision:
-            done = True
+        done = self.collision
         if self.t == self.T:
-            done = True
+            done = [True]*8
         if self.is_record:
             self._log_control_data(action, global_reward)
         if done and (self.is_record):
