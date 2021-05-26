@@ -14,7 +14,7 @@ import ray
 """
 
 
-def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
+def main(env_fn, device, debug=False, test=False, seed=None, init_checkpoint=None):
     
     radius_q = 2
     radius = 1
@@ -129,7 +129,7 @@ def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=2)
+    ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
-    RL(logger = logger, **algo_args._toDict()).run()
+    RL(logger = logger, device=device, **algo_args._toDict()).run()

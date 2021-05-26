@@ -1,7 +1,7 @@
 from copy import deepcopy
 from torch.multiprocessing import Pool, Process, set_start_method
 import ray
-from .utils import dictSelect, dictSplit, listStack, parallelEval
+from .utils import dictSelect, dictSplit, listStack, parallelEval, locate
 from .models import *
 from ray.util import pdb as ppdb
 import ipdb as pdb
@@ -58,6 +58,7 @@ class QLearning(nn.Module):
         self.q_optimizer = Adam(self.q_params, lr=q_args.lr)
         
     def _evalQ(self, s, output_distribution, a, **kwargs):
+        s = s.to(self.alpha.device)
         with torch.no_grad():
             q1 = self.q1(s, output_distribution, a)
             q2 = self.q2(s, output_distribution, a)
@@ -65,6 +66,7 @@ class QLearning(nn.Module):
         
     def updateQ(self, s, a, r, s1, d):
         
+        s, a, r, s1, d = locate(self.alpha.device, s, a, r, s1, d)
         q1 = self.q1(s, a)
         q2 = self.q2(s, a)
 
@@ -108,6 +110,7 @@ class QLearning(nn.Module):
         o and a of shape [b, ..],
         not differentiable
         """
+        s = s.to(self.alpha.device)
         with torch.no_grad():
             q1 = self.q1(s)
             q2 = self.q2(s)
@@ -137,7 +140,7 @@ class SAC(QLearning):
         self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         self.target_entropy = target_entropy
         
-        self.eps = 0 
+        self.eps = 0
         self.action_space = env.action_space
         if isinstance(self.action_space, Box): #continous
             self.pi = SquashedGaussianActor(**pi_args._toDict())
@@ -157,6 +160,7 @@ class SAC(QLearning):
             called during env interaction and model rollout
             not used when updating q
         """
+        s = s.to(self.alpha.device)
         with torch.no_grad():
             if isinstance(self.action_space, Discrete):
                 a = self.pi(s)
@@ -189,6 +193,9 @@ class SAC(QLearning):
         """
         q is None for single agent
         """
+        s = s.to(self.alpha.device)
+        if not q is None:
+            q = q.to(self.alpha.device)
         if isinstance(self.action_space, Discrete):
             pi = self.pi(s) + 1e-5 # avoid nan
             logp = torch.log(pi/pi.sum(dim=1, keepdim=True))
@@ -232,6 +239,7 @@ class SAC(QLearning):
             only used for decentralized multiagent
             the distribution of local action is recomputed
         """
+        s, a, r, s1, d, a1, p_a1 = locate(self.alpha.device, s, a, r, s1, d, a1, p_a1)
         q1 = self.q1(s, False, a)
         q2 = self.q2(s, False, a)
         
@@ -288,6 +296,7 @@ class MBPO(SAC):
         self.p_optimizer = Adam(self.p_params, lr=p_args.lr)
         
     def updateP(self, s, a, r, s1, d):
+        s, a, r, s1, d = locate(self.alpha.device, s, a, r, s1, d)
         loss = 0
         for i in range(self.n_p):
             loss_, r_, s1_, d_ =  self.ps[i](s, a, r, s1, d)
@@ -303,6 +312,7 @@ class MBPO(SAC):
             a is None as long as single agent 
             (if multiagent, set a to prevent computing .act() redundantly)
         """
+        s, a = locate(self.alpha.device, s, a)
         p = self.ps[np.random.randint(self.n_p)]
         
         with torch.no_grad():
@@ -314,7 +324,9 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-@ray.remote(num_gpus = 1/15, num_cpus=1/2)
+NUM_GPU=1
+NUM_CPU=1
+@ray.remote(num_gpus = 0, num_cpus=1/2)
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
@@ -322,9 +334,8 @@ class Worker(object):
     def __init__(self, agent_fn, device, **args):
         self.gpus = ray.get_gpu_ids()
        # torch.cuda.set_per_process_memory_fraction(1/30)
-        self.device = torch.device(f"cuda")
+        self.device = torch.device(device)
         self.instance = agent_fn(**args).to(self.device)
-        ppdb.set_trace()
         
     def roll(self, **data):
         return self.instance.roll(**data)

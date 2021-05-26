@@ -9,6 +9,15 @@ import ray
 import time
 from torch.utils.tensorboard import SummaryWriter
 
+def locate(device, *args):
+    lst = []
+    for item in args:
+        if item is None:
+            lst.append(None)
+        else:
+            lst.append(item.to(device))
+    return lst
+
 def parallelEval(agents, func, args):
     """
     expects a list of dicts
