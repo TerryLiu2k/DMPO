@@ -12,7 +12,7 @@ import ray
 """
 
 
-def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=None):
+def main(env_fn, debug=False, name='tmp', test=False, seed=None, device=0, init_checkpoint=None):
     
     radius_q = 2
     radius = 1
@@ -114,6 +114,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
         seed = np.random.randint(65536)
     args.seed = seed
     args.test = test
+    args.name = name
 
     q_args.env_fn = env_fn
     agent_args.env_fn = env_fn

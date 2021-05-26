@@ -9,6 +9,7 @@ import subprocess
 from sumolib import checkBinary
 import time
 import traci
+import pdb
 import xml.etree.cElementTree as ET
 
 DEFAULT_PORT = 8000
@@ -84,6 +85,7 @@ class TrafficSimulator:
         self.T = np.ceil(self.episode_length_sec / self.control_interval_sec)
         self.port = DEFAULT_PORT + port
         self.sim_thread = port
+        self.label = str(np.random.randint(999999))
         self.obj = config.get('objective')
         self.data_path = config.get('data_path')
         self.agent = config.get('agent')
@@ -170,6 +172,7 @@ class TrafficSimulator:
         else:
             seed = self.test_seeds[test_ind]
         self._init_sim(seed, gui=gui)
+        traci.switch(self.label)
         self.cur_sec = 0
         self.cur_episode += 1
         # initialize fingerprint
@@ -189,6 +192,7 @@ class TrafficSimulator:
         done = False
         if self.cur_sec >= self.episode_length_sec:
             done = True
+            self.terminate()
         global_reward = np.sum(reward)
         if self.is_record:
             action_r = ','.join(['%d' % a for a in action])
@@ -207,6 +211,7 @@ class TrafficSimulator:
         return state, reward, done, global_reward
 
     def terminate(self):
+        traci.switch(self.label)
         self.sim.close()
 
     def update_fingerprint(self, policy):
@@ -296,6 +301,7 @@ class TrafficSimulator:
         raise NotImplementedError()
 
     def _init_nodes(self):
+        traci.switch(self.label)
         nodes = {}
         tl_nodes = self.sim.trafficlight.getIDList()
         for node_name in self.node_names:
@@ -347,7 +353,6 @@ class TrafficSimulator:
             app = 'sumo'
         command = [checkBinary(app), '-c', sumocfg_file]
         command += ['--seed', str(seed)]
-        command += ['--remote-port', str(self.port)]
         command += ['--no-step-log', 'True']
         command += ['--time-to-teleport', '600'] # long teleport for safety
         command += ['--no-warnings', 'True']
@@ -356,10 +361,13 @@ class TrafficSimulator:
         if self.is_record:
             command += ['--tripinfo-output',
                         self.output_path + ('%s_%s_trip.xml' % (self.name, self.agent))]
-        subprocess.Popen(command)
+        print(f"Initializing sumo with label {self.label}")
+        traci.start(command, label = self.label)
+        traci.switch(self.label)
         # wait 1s to establish the traci server
         time.sleep(1)
-        self.sim = traci.connect(port=self.port)
+        self.sim = traci
+        
 
     def _init_sim_config(self):
         # needs to be overwriteen
@@ -381,6 +389,7 @@ class TrafficSimulator:
             self.n_s_ls.append(num_wait + num_wave)
 
     def _measure_reward_step(self):
+        traci.switch(self.label)
         rewards = []
         for node_name in self.node_names:
             queues = []
@@ -418,6 +427,7 @@ class TrafficSimulator:
         return np.array(rewards)
 
     def _measure_state_step(self):
+        traci.switch(self.label)
         for node_name in self.node_names:
             node = self.nodes[node_name]
             for state_name in self.state_names:
@@ -462,6 +472,7 @@ class TrafficSimulator:
                     node.wait_state = norm_cur_state
 
     def _measure_traffic_step(self):
+        traci.switch(self.label)
         cars = self.sim.vehicle.getIDList()
         num_tot_car = len(cars)
         num_in_car = self.sim.simulation.getDepartedNumber()
@@ -510,12 +521,14 @@ class TrafficSimulator:
             node.prev_action = 0
 
     def _set_phase(self, action, phase_type, phase_duration):
+        traci.switch(self.label)
         for node_name, a in zip(self.node_names, list(action)):
             phase = self._get_node_phase(a, node_name, phase_type)
             self.sim.trafficlight.setRedYellowGreenState(node_name, phase)
             self.sim.trafficlight.setPhaseDuration(node_name, phase_duration)
 
     def _simulate(self, num_step):
+        traci.switch(self.label)
         # reward = np.zeros(len(self.control_node_names))
         for _ in range(num_step):
             self.sim.simulationStep()
