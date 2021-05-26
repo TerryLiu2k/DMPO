@@ -62,7 +62,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
      in principle this can be arbitrarily frequent
     """
     p_args.n_p=7 # ensemble
-    p_args.refresh_interval=int(2e2) # refreshes the model buffer
+    p_args.refresh_interval=int(1e3) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
@@ -73,7 +73,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
     q_args.sizes = [5*(1+2*radius_q), 64, 64, 5] # 4 actions, dueling q learning
-    q_args.update_interval=1/20
+    q_args.update_interval=1/5
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (2*radius_q)
@@ -83,7 +83,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [5*(1+2*radius), 64, 64, 4] 
-    pi_args.update_interval=1/20
+    pi_args.update_interval=1/5
 
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
@@ -103,7 +103,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     agent_args.alpha=0.2
     agent_args.target_entropy = 0.2
     # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate=5e-3
+    agent_args.target_sync_rate=1e-3
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 

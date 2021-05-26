@@ -15,7 +15,7 @@ import ray
 def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=None):
     
     radius_q = 2
-    radius = 1
+    radius = 2
     # radius for p and pi
 
     algo_args = Config()
