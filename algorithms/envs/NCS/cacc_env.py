@@ -48,18 +48,14 @@ class CACCEnv:
 
     def _get_reward(self):
         # give large penalty for collision
-        if np.min(self.hs_cur) < self.h_min:
-            self.collision = True
-            return -self.G * np.ones(self.n_agent)
+
         h_rewards = -(self.hs_cur - self.h_star) ** 2
         v_rewards = -self.a * (self.vs_cur - self.v_star) ** 2
         u_rewards = -self.b * (self.us_cur) ** 2
-        if self.train_mode:
-            c_rewards = -COLLISION_WT * (np.minimum(self.hs_cur - COLLISION_HEADWAY, 0)) ** 2
-        else:
-            c_rewards = 0
-        rewards = h_rewards + v_rewards + u_rewards 
-       # rewards = v_rewards
+        collision = self.hs_cur < self.h_min
+        collision[1:] += collision[:-1] # two adjacent cars
+        c_rewards = -self.G * collision
+        rewards = h_rewards + v_rewards + u_rewards + c_rewards
         return rewards
     
     def state2Reward(self, state):
@@ -273,7 +269,7 @@ class CACCEnv:
         global_reward = np.sum(reward)
         self.rewards.append(global_reward)
         done = False
-        if self.collision and not self.t % self.batch_size:
+        if self.collision:
             done = True
         if self.t == self.T:
             done = True
