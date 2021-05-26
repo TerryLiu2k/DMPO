@@ -73,6 +73,33 @@ def reduce(k):
     else:
         return lambda x: x
     
+def gather2D(shape, k):
+    def _gather(tensor):
+        """ 
+        for multiple agents aligned along an axis to collect information from their k-hop neighbor
+        input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
+        action is an one-hot embedding
+        
+        the first is local
+        """
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
+        b, n, depth = tensor.shape
+
+        result = torch.zeros((b, n, (1+2*k)*depth), dtype = tensor.dtype, device=tensor.device)
+        for i in range(n):
+            for j in range(i-k, i+k+1):
+                if j<0 or j>=n:
+                    continue
+                start = (j-i +1 +2*k)%(1+2*k)
+                result[:, i, start*depth: start*depth+depth] = tensor[:, j]
+        return result
+    if k > 0:
+        return _gather
+    else:
+        return lambda x: x
+    
+
 def collect(dic={}):
     """
     selects a different gather radius (more generally, collective operation) for each data key
