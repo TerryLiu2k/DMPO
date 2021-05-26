@@ -39,10 +39,10 @@ class QLearning(nn.Module):
             q_net is the network class
         """
         super().__init__()
-        self.logger = logger.child("agent")
         self.gamma = gamma
         self.target_sync_rate=target_sync_rate
         self.eps = eps
+        self.logger = logger
         self.action_space=env.action_space
 
         self.q1 = QCritic(env, **q_args._toDict())
@@ -314,15 +314,17 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-@ray.remote(num_gpus = 1/8, num_cpus=1/4)
+@ray.remote(num_gpus = 1/15, num_cpus=1/2)
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
     """
-    def __init__(self, agent_fn, **args):
+    def __init__(self, agent_fn, device, **args):
         self.gpus = ray.get_gpu_ids()
+       # torch.cuda.set_per_process_memory_fraction(1/30)
         self.device = torch.device(f"cuda")
         self.instance = agent_fn(**args).to(self.device)
+        ppdb.set_trace()
         
     def roll(self, **data):
         return self.instance.roll(**data)
@@ -353,7 +355,7 @@ class Worker(object):
     
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, env, wrappers, **agent_args):
+    def __init__(self, n_agent, env, wrappers, device, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -396,9 +398,8 @@ class MultiAgent(nn.Module):
         if not agent_args['p_args'] is None:
             self.p_to_predict = agent_args['p_args'].to_predict
         for i in range(n_agent):
-            agent = Worker.remote(agent_fn=agent_fn, logger = logger.child(f"{i}"), env=env, **agent_args)
+            agent = Worker.remote(agent_fn=agent_fn, device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
             self.agents.append(agent)
-        pdb.set_trace()
         wrappers['p_out'] = listStack
         # (s, r, d)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)

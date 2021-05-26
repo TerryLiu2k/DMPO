@@ -35,7 +35,7 @@ def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=720
     algo_args.test_interval = int(1e3)
-    algo_args.batch_size=1 # MBPO used 256
+    algo_args.batch_size=128 # MBPO used 256
     algo_args.n_step=int(1e8)
     algo_args.n_test = 10
     algo_args.init_checkpoint = init_checkpoint
@@ -66,7 +66,7 @@ def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
      in principle this can be arbitrarily frequent
     """
     p_args.n_p=7 # ensemble
-    p_args.refresh_interval=int(1e3) # refreshes the model buffer
+    p_args.refresh_interval=int(2e3) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
