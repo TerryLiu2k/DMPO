@@ -73,7 +73,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
     q_args.sizes = [5*(1+2*radius_q), 64, 64, 5] # 4 actions, dueling q learning
-    q_args.update_interval=1/5
+    q_args.update_interval=1
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (2*radius_q)
@@ -83,7 +83,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [5*(1+2*radius), 64, 64, 4] 
-    pi_args.update_interval=1/5
+    pi_args.update_interval=1
 
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})

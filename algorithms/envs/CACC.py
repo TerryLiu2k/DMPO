@@ -7,6 +7,9 @@ import os
 import pdb
 from ..utils import listStack
 
+BIAS = 200
+STD = 2000
+
 class CACCWrapper(gym.Wrapper):
     def __init__(self, config_path):
         # k-hop
@@ -41,14 +44,14 @@ class CACCWrapper(gym.Wrapper):
     def state2Reward(self, state):
         # accepts a (gpu) tensor
         reward, done =  self.env.state2Reward(state)
-        return (reward+200)/200, done
+        return (reward+BIAS)/STD, done
     
     def rescaleReward(self, acc_reward, episode_len):
         """
         acc_reward is sum over trajectory, mean over agent
         """
-        acc_reward = acc_reward*200
-        acc_reward -= episode_len*200
+        acc_reward = acc_reward*STD
+        acc_reward -= episode_len*BIAS
         reward = acc_reward*8/episode_len
         return reward
         
