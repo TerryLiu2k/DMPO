@@ -7,11 +7,8 @@ import os
 import pdb
 from ..utils import listStack
 
-BIAS = 200
-STD = 2000
-
 class CACCWrapper(gym.Wrapper):
-    def __init__(self, config_path):
+    def __init__(self, config_path, bias=0, std=1):
         # k-hop
         config_path = os.path.join(os.path.dirname(__file__), config_path)
         config = configparser.ConfigParser()
@@ -22,6 +19,8 @@ class CACCWrapper(gym.Wrapper):
         super().__init__(env)
         self.observation_space = Box(-1e6, 1e6, [(self.k*2+1)*5])
         self.action_space = Discrete(4)
+        self.bias=bias
+        self.std=std
     
     def ifCollide(self):
         ob = self.state
@@ -44,14 +43,14 @@ class CACCWrapper(gym.Wrapper):
     def state2Reward(self, state):
         # accepts a (gpu) tensor
         reward, done =  self.env.state2Reward(state)
-        return (reward+BIAS)/STD, done
+        return (reward+self.bias)/self.std, done
     
     def rescaleReward(self, acc_reward, episode_len):
         """
         acc_reward is sum over trajectory, mean over agent
         """
-        acc_reward = acc_reward*STD
-        acc_reward -= episode_len*BIAS
+        acc_reward = acc_reward*self.std
+        acc_reward -= episode_len*self.bias
         reward = acc_reward*8/episode_len
         return reward
         
@@ -60,7 +59,7 @@ class CACCWrapper(gym.Wrapper):
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)
-        done = np.array([done]*8, dtype=np.float32)
+        done = np.array(done, dtype=np.float32)
         self.state=state
         """
         collision yields -1000*8, while the initial reward is -170, -1600 before collision
@@ -68,11 +67,11 @@ class CACCWrapper(gym.Wrapper):
         
         gets 1 if locally perfect, -4 and done if collision
         """
-        return state, (reward+BIAS)/STD, done, None
+        return state, (reward+self.bias)/self.std, done, None
         
 
 def CACC_catchup():
-    return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini')
+    return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=300, std=300)
 
 def CACC_slowdown():
-    return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini')
+    return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini', bias=300, std=300)
