@@ -171,6 +171,10 @@ class TrafficSimulator:
             seed = self.seed
         else:
             seed = self.test_seeds[test_ind]
+        try:
+            self.terminate()
+        except:
+            pass
         self._init_sim(seed, gui=gui)
         traci.switch(self.label)
         self.cur_sec = 0
@@ -206,8 +210,6 @@ class TrafficSimulator:
         # use original rewards in test
         if not self.train_mode:
             return state, reward, done, global_reward
-        if (self.agent == 'greedy') or (self.coop_gamma < 0):
-            reward = global_reward
         return state, reward, done, global_reward
 
     def terminate(self):
