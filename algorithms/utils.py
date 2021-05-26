@@ -75,15 +75,16 @@ def reduce(k):
     
 def gather2D(shape, k):
     def _gather(tensor):
+        l = 1+2*k
         if len(tensor.shape) == 2: # discrete action
             tensor = tensor.unsqueeze(-1)
         b, n, depth = tensor.shape
         tensor = tensor.view(b, shape[0], shape[1], depth)
 
-        result = torch.zeros((b, n, k*k*depth), dtype = tensor.dtype, device=tensor.device)
+        result = torch.zeros((b, n, l*l*depth), dtype = tensor.dtype, device=tensor.device)
         
-        for x in shape[0]:
-            for y in shape[1]:
+        for x in range(shape[0]):
+            for y in range(shape[1]):
                 for x1 in range(x-k, x+k+1):
                     if x1<0 or x1>=shape[0]:
                         continue
@@ -91,7 +92,7 @@ def gather2D(shape, k):
                         if y1<0 or y1>=shape[1]:
                             continue
                         start = (x1-x)*shape[1]+ (y1-y)
-                        start = (start+k*k) % (k*k)
+                        start = (start+l*l) % (l*l)
                         result[:, x*shape[1]+y, start*depth: start*depth+depth] = tensor[:, x1, y1]
         return result
     if k > 0:
@@ -108,16 +109,14 @@ def reduce2D(shape, k):
 
         result = torch.zeros((b, n, depth), dtype = tensor.dtype, device=tensor.device)
         
-        for x in shape[0]:
-            for y in shape[1]:
+        for x in range(shape[0]):
+            for y in range(shape[1]):
                 for x1 in range(x-k, x+k+1):
                     if x1<0 or x1>=shape[0]:
                         continue
                     for y1 in range(y-k, y+k+1):
                         if y1<0 or y1>=shape[1]:
                             continue
-                        start = (x1-x)*shape[1]+ (y1-y)
-                        start = (start+k*k) % (k*k)
                         result[:, x*shape[1]+y] += tensor[:, x1, y1]
         return result
     if k > 0:
@@ -356,6 +355,7 @@ class LogServer(object):
                 self.writer.add_histogram(log_key, data[log_key], self.step)
             else:
                 self.writer.add_scalar(log_key, data[log_key], self.step)
+            self.writer.flush()
 
         self.logger.log(data=data, step =self.step, commit=False)
         # "warning: step must only increase "commit = True

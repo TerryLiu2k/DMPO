@@ -35,7 +35,7 @@ def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=720
     algo_args.test_interval = int(1e3)
-    algo_args.batch_size=256 # the same as MBPO
+    algo_args.batch_size=1 # MBPO used 256
     algo_args.n_step=int(1e8)
     algo_args.n_test = 10
     algo_args.init_checkpoint = init_checkpoint
@@ -129,7 +129,7 @@ def main(env_fn, debug=False, test=False, seed=None, init_checkpoint=None):
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=2, object_store_memory=int(1e10))
+    ray.init(ignore_reinit_error = True, num_gpus=2)
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, **algo_args._toDict()).run()

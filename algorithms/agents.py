@@ -3,7 +3,8 @@ from torch.multiprocessing import Pool, Process, set_start_method
 import ray
 from .utils import dictSelect, dictSplit, listStack, parallelEval
 from .models import *
-from ray.util import pdb
+from ray.util import pdb as ppdb
+import ipdb as pdb
 
 """
     Not implemented yet:
@@ -313,13 +314,15 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
     
-@ray.remote(num_gpus = 1/13, num_cpus=1/4)
+@ray.remote(num_gpus = 1/8, num_cpus=1/4)
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
     """
     def __init__(self, agent_fn, **args):
-        self.instance = agent_fn(**args)
+        self.gpus = ray.get_gpu_ids()
+        self.device = torch.device(f"cuda")
+        self.instance = agent_fn(**args).to(self.device)
         
     def roll(self, **data):
         return self.instance.roll(**data)
@@ -395,6 +398,7 @@ class MultiAgent(nn.Module):
         for i in range(n_agent):
             agent = Worker.remote(agent_fn=agent_fn, logger = logger.child(f"{i}"), env=env, **agent_args)
             self.agents.append(agent)
+        pdb.set_trace()
         wrappers['p_out'] = listStack
         # (s, r, d)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
@@ -473,8 +477,8 @@ class MultiAgent(nn.Module):
     def act(self, s, deterministic=False, output_distribution=False):
         data = {'s': s, 'deterministic':deterministic, 
                'output_distribution': output_distribution}
-        data = self.wrappers['pi_in'](data)
-        results = parallelEval(self.agents, 'act', data)
+        inputs = self.wrappers['pi_in'](data)
+        results = parallelEval(self.agents, 'act', inputs)
         if output_distribution:
             return listStack(results)
         else:

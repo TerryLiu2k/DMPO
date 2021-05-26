@@ -1,4 +1,4 @@
-from ray.util import pdb
+import ipdb as pdb
 import numpy as np
 import torch
 import gym
@@ -183,8 +183,8 @@ class RL(object):
                 ep_ret += r.mean()
                 ep_len += 1
             if hasattr(test_env, 'rescaleReward'):
-                raw_ret = test_env.rescaleReward(ep_ret, ep_len)
-            returns += [raw_ret]
+                ep_ret = test_env.rescaleReward(ep_ret, ep_len)
+            returns += [ep_ret]
             lengths += [ep_len]
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)

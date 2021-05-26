@@ -95,7 +95,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     args.algo_args = algo_args # do not call toDict() before config is set
     algo_args.seed = args.seed
         
-    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
+    ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

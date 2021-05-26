@@ -1,4 +1,5 @@
 import torch
+import os
 import ipdb as pdb
 import numpy as np
 from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, listStack, reduce
@@ -127,7 +128,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
+    ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

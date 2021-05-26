@@ -192,6 +192,7 @@ class TrafficSimulator:
         done = False
         if self.cur_sec >= self.episode_length_sec:
             done = True
+            self.terminate()
         global_reward = np.sum(reward)
         if self.is_record:
             action_r = ','.join(['%d' % a for a in action])
