@@ -321,14 +321,15 @@ class LogServer(object):
     It also keeps track of the global step
     """
     def __init__(self, args, mute=False):
-        self.group = args.algo_args.env_fn.__name__
-        self.name = f"{args.name}_{self.group}_{args.algo_args.agent_args.agent.__name__}_{args.seed}"
-        args.name = self.name
+        args, algo_args = args['run_args'], args['algo_args']
+        self.group = algo_args.env_fn.__name__
+        self.name = args.name
         if not mute:
             run=wandb.init(
                 project="RL",
-                config=args._toDict(recursive=True),
-                name=self.name,
+                config={"run_args":args._toDict(recursive=True),
+                        "algo_args":algo_args._toDict(recursive=True)},
+                name=args.name,
                 group=self.group,
             )
             self.logger = run

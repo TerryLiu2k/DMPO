@@ -13,9 +13,9 @@ import ray
 """
 
 
-def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=None):
+def main(env_fn, n_cpu, n_gpu, debug=False,  test=False, seed=None, device=0, init_checkpoint=None):
     
-    radius_q = 2
+    radius_q = 1
     radius = 1
     # radius for p and pi
 
@@ -131,4 +131,4 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
-    RL(logger = logger, device=device, **algo_args._toDict()).run()
+    RL(logger = logger, device=device, n_cpu=n_cpu, n_gpu=n_gpu, **algo_args._toDict()).run()

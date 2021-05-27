@@ -87,12 +87,10 @@ class ReplayBuffer:
 
 
 class RL(object):
-    def __init__(self, logger, env_fn, agent_args,
-       device, n_cpu, n_gpu,
-        n_warmup, batch_size, replay_size, init_checkpoint,
+    def __init__(self, logger, run_args, env_fn, agent_args,
+        n_warmup, batch_size, replay_size, 
        max_ep_len, test_interval, n_step, n_test,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
-       start_step = 0,
        **kwargs):
         """ 
         a generic algorithm for single agent model-based actor-critic, 
@@ -103,19 +101,19 @@ class RL(object):
         """
         self.env, self.test_env = env_fn(), env_fn()
         
-        agent = agent_args.agent(logger=logger, device=device, n_cpu=n_cpu, n_gpu=n_gpu, env=self.env, **agent_args._toDict())
-        if not init_checkpoint is None:
-            agent.load(init_checkpoint)
-            logger.log(interaction=start_step)        
+        agent = agent_args.agent(logger=logger, run_args=run_args, env=self.env, **agent_args._toDict())
+        if not run_args.init_checkpoint is None:
+            agent.load(run_args.init_checkpoint)
+            logger.log(interaction=run_args.start_step)   
+        self.name = run_args.name
+        self.start_step = run_args.start_step
 
         s, self.episode_len, self.episode_reward = self.env.reset(), 0, 0
         self.agent_args = agent_args
         self.p_args, self.pi_args, self.q_args = agent_args.p_args, agent_args.pi_args, agent_args.q_args
         self.agent = agent
-        self.name = logger.getArgs().name
         
         self.batch_size = batch_size
-        self.start_step = start_step
         self.n_step = n_step
         self.max_ep_len = max_ep_len
 
