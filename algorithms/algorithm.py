@@ -87,8 +87,8 @@ class ReplayBuffer:
 
 
 class RL(object):
-    def __init__(self, logger,
-       env_fn, agent_args, device,
+    def __init__(self, logger, env_fn, agent_args,
+       device, n_cpu, n_gpu,
         n_warmup, batch_size, replay_size, init_checkpoint,
        max_ep_len, test_interval, n_step, n_test,
        p_update_interval=None, q_update_interval=None, pi_update_interval=None,
@@ -103,7 +103,7 @@ class RL(object):
         """
         self.env, self.test_env = env_fn(), env_fn()
         
-        agent = agent_args.agent(logger=logger, device=device, env=self.env, **agent_args._toDict())
+        agent = agent_args.agent(logger=logger, device=device, n_cpu=n_cpu, n_gpu=n_gpu, env=self.env, **agent_args._toDict())
         if not init_checkpoint is None:
             agent.load(init_checkpoint)
             logger.log(interaction=start_step)        

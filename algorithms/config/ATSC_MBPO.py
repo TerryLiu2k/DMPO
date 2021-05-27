@@ -14,7 +14,7 @@ import ray
 """
 
 
-def main(env_fn, device, debug=False, name='tmp', test=False, seed=None, init_checkpoint=None):
+def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, seed=None, init_checkpoint=None):
     
     radius_q = 2
     radius = 1
@@ -37,7 +37,7 @@ def main(env_fn, device, debug=False, name='tmp', test=False, seed=None, init_ch
     algo_args.test_interval = int(1e3)
     algo_args.batch_size=128 # MBPO used 256
     algo_args.n_step=int(1e8)
-    algo_args.n_test = 10
+    algo_args.n_test = 1
     algo_args.init_checkpoint = init_checkpoint
     if debug:
         algo_args.batch_size = 4
@@ -134,4 +134,4 @@ def main(env_fn, device, debug=False, name='tmp', test=False, seed=None, init_ch
     ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
-    RL(logger = logger, device=device, **algo_args._toDict()).run()
+    RL(logger = logger, device=device, n_cpu=n_cpu, n_gpu=n_gpu, **algo_args._toDict()).run()

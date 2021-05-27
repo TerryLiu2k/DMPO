@@ -20,14 +20,20 @@ class ATSCWrapper(gym.Wrapper):
         state = np.array(state, dtype=np.float32)
         self.state = state
         return state    
+    
+    def rescaleReward(self, reward, _):
+        return reward*20
         
     def step(self, action):
+        """
+        reward scaling is necessary since SAC temperature tuning can be slow to adapt to large reward
+        """
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)
         done = np.array([done]*25, dtype=np.float32)
         self.state=state
-        return state, reward, done, None
+        return state, reward/20, done, None
     
 def ATSCGrid():
     return ATSCWrapper()

@@ -324,7 +324,7 @@ class MBPO(SAC):
                 return None
         return  r, s1, d
 
-@ray.remote(num_gpus = 1/8, num_cpus=1)
+@ray.remote
 class Worker(object):
     """
     A ray actor wrapper class for multiprocessing
@@ -364,7 +364,7 @@ class Worker(object):
     
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, env, wrappers, device, **agent_args):
+    def __init__(self, n_agent, env, wrappers, device, n_gpu, n_cpu, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -407,7 +407,8 @@ class MultiAgent(nn.Module):
         if not agent_args['p_args'] is None:
             self.p_to_predict = agent_args['p_args'].to_predict
         for i in range(n_agent):
-            agent = Worker.remote(agent_fn=agent_fn, device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
+            agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
+                                                                     device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
             self.agents.append(agent)
         wrappers['p_out'] = listStack
         # (s, r, d)
