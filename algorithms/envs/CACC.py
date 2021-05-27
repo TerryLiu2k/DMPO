@@ -7,7 +7,7 @@ import os
 import pdb
 from ..utils import listStack
 
-BIAS = 200
+BIAS = 400
 STD = 2000
 
 class CACCWrapper(gym.Wrapper):

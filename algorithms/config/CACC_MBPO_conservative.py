@@ -128,7 +128,7 @@ def main(env_fn, debug=False, name='tmp', test=False, seed=None, device=0, init_
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
+    ray.init(ignore_reinit_error = True, num_gpus=1)
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

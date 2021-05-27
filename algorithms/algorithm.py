@@ -167,6 +167,7 @@ class RL(object):
 
     def test(self):
         returns = []
+        scaled = []
         lengths = []
         for i in trange(self.n_test):
             test_env = self.test_env
@@ -182,6 +183,7 @@ class RL(object):
                 ep_ret += r.mean()
                 ep_len += 1
             if hasattr(test_env, 'rescaleReward'):
+                scaled += [ep_ret]
                 ep_ret = test_env.rescaleReward(ep_ret, ep_len)
             returns += [ep_ret]
             lengths += [ep_len]
@@ -190,6 +192,7 @@ class RL(object):
         self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
         print(returns)
         print(f"{self.n_test} episodes average accumulated reward: {returns.mean()}")
+        print(f"scaled reward {np.mean(scaled)}")
         return returns.mean()
         
     def updateAgent(self):
