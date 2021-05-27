@@ -46,7 +46,7 @@ class ParameterizedModel(nn.Module):
         if isinstance(self.action_space, Discrete):
             self.action_embeddings = nn.ModuleList()
             for i in range(n_embedding):
-                self.action_embeddings += [nn.Embedding(self.action_space.n,input_dim)]
+                self.action_embeddings += [nn.Embedding(self.action_space.n, input_dim)]
         self.net = MLP(**net_args)
         self.state_head = nn.Linear(output_dim, self.observation_space.shape[0])
         self.reward_head = nn.Linear(output_dim, 1)

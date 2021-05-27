@@ -173,7 +173,7 @@ class RL(object):
             test_env = self.test_env
             test_env.reset()
             d, ep_ret, ep_len = np.array([False]), 0, 0
-            while not(d.all() or (ep_len == self.max_ep_len)):
+            while not(d.any() or (ep_len == self.max_ep_len)):
                 # Take deterministic actions at test time 
                 state = torch.as_tensor(test_env.state, dtype=torch.float)
                 action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
@@ -256,7 +256,7 @@ class RL(object):
             d = np.zeros(d.shape, dtype=np.float32)
         d = np.array(d)
         self.env_buffer.store(state, a, r, s1, d)
-        if d.all() or (self.episode_len == self.max_ep_len):
+        if d.any() or (self.episode_len == self.max_ep_len):
             """ for compatibility, allow different agents to have different done"""
             self.logger.log(episode_reward=self.episode_reward.mean(), episode_len=self.episode_len, episode=None)
             _, self.episode_reward, self.episode_len = self.env.reset(), 0, 0

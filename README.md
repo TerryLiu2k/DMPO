@@ -31,8 +31,7 @@ Features:
 Interface:
 The state, reward, done should all be numpy arrays
 
-Example:
+Usage:
 ```python
-from algorithms.config.CACC_MBPO import main
-main()
+python launcher.py
 ```

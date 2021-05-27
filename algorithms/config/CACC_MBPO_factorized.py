@@ -1,4 +1,5 @@
 import torch
+import os
 import ipdb as pdb
 import numpy as np
 from ..utils import Config, LogClient, LogServer, setSeed, gather, collect, listStack, reduce
@@ -9,10 +10,11 @@ import ray
 
 """
     the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
+    10 updates, 5e-3 tau
 """
 
 
-def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=None):
+def main(env_fn, debug=False, test=False, seed=None, device=0, name='tmp', init_checkpoint=None):
     
     radius_q = 2
     radius = 1
@@ -35,14 +37,6 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     algo_args.n_step=int(1e8)
     algo_args.n_test = 10
     algo_args.init_checkpoint = init_checkpoint
-    if debug:
-        algo_args.batch_size = 4
-        algo_args.max_ep_len=2
-        algo_args.replay_size=1
-        algo_args.n_warmup=1
-    if test:
-        algo_args.n_warmup = 0
-        algo_args.n_test = 50
 
     p_args=Config()
     p_args.network = MLP
@@ -62,7 +56,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
      in principle this can be arbitrarily frequent
     """
     p_args.n_p=7 # ensemble
-    p_args.refresh_interval=int(1e3) # refreshes the model buffer
+    p_args.refresh_interval=int(5e2) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
@@ -73,7 +67,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
     q_args.sizes = [5*(1+2*radius_q), 64, 64, 5] # 4 actions, dueling q learning
-    q_args.update_interval=1
+    q_args.update_interval=1/10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (2*radius_q)
@@ -83,7 +77,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [5*(1+2*radius), 64, 64, 4] 
-    pi_args.update_interval=1
+    pi_args.update_interval=1/10
 
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
@@ -103,7 +97,7 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     agent_args.alpha=0.2
     agent_args.target_entropy = 0.2
     # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate=1e-3
+    agent_args.target_sync_rate=5e-3
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 
@@ -114,7 +108,20 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
         seed = np.random.randint(65536)
     args.seed = seed
     args.test = test
+    args.name = name
 
+    if debug:
+        algo_args.batch_size = 4
+        algo_args.max_ep_len=2
+        algo_args.replay_size=1
+        algo_args.n_warmup=1
+        p_args.update_interval = 1
+        q_args.update_interval = 1
+        pi_args.update_interval = 1
+    if test:
+        algo_args.n_warmup = 0
+        algo_args.n_test = 50
+        
     q_args.env_fn = env_fn
     agent_args.env_fn = env_fn
     algo_args.env_fn = env_fn
@@ -124,10 +131,11 @@ def main(env_fn, debug=False, test=False, seed=None, device=0, init_checkpoint=N
     algo_args.agent_args = agent_args
     args.algo_args = algo_args # do not call toDict() before config is set
     algo_args.seed = args.seed
+    
         
     print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
     # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=1, object_store_memory=int(1e10))
+    ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
     logger = LogServer.remote(args, mute=debug or test)
     logger = LogClient(logger)
     RL(logger = logger, device=device, **algo_args._toDict()).run()

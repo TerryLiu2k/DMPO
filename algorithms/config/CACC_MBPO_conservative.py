@@ -8,7 +8,7 @@ from ..algorithm import RL
 import ray
 
 """
-    the hyperparameters are the same as MBPO, almost the same on Mujoco and Inverted Pendulum
+    smaller tau (1e-3 instead of 1e-5) less frequent update (5 instead of 20)
 """
 
 
