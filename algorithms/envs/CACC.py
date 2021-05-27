@@ -62,7 +62,7 @@ class CACCWrapper(gym.Wrapper):
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)
-        done = np.array(done, dtype=np.float32)
+        done = np.array([done]*8, dtype=np.float32)
         self.state=state
         """
         collision yields -1000*8, while the initial reward is -170, -1600 before collision
@@ -75,7 +75,9 @@ class CACCWrapper(gym.Wrapper):
         
 
 def CACC_catchup():
+    print(f"reward scaling bias{BIAS}, std{STD}")
     return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=BIAS, std=STD)
 
 def CACC_slowdown():
+    print(f"reward scaling bias{BIAS}, std{STD}")
     return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini', bias=BIAS, std=STD)

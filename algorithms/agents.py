@@ -364,7 +364,7 @@ class Worker(object):
     
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, env, wrappers, device, n_gpu, n_cpu, **agent_args):
+    def __init__(self, n_agent, env, wrappers, run_args, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -406,6 +406,7 @@ class MultiAgent(nn.Module):
         self.agents = []
         if not agent_args['p_args'] is None:
             self.p_to_predict = agent_args['p_args'].to_predict
+        n_cpu, n_gpu, device = run_args.n_cpu, run_args.n_gpu, run_args.device
         for i in range(n_agent):
             agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
                                                                      device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
