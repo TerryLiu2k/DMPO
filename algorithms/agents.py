@@ -412,7 +412,7 @@ class MultiAgent(nn.Module):
                 agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
                                                                          device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
             else:
-                agent = agent_fn(device=device, env=env, logger=logger, **agent_args)
+                agent = agent_fn(device=device, env=env, logger=logger, **agent_args).to(device)
             self.agents.append(agent)
         if parallel: 
             self.eval = parallelEval

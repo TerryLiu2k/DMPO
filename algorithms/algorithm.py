@@ -266,7 +266,7 @@ class RL(object):
             self.agent.setEps(1)
         else:
             self.agent.setEps(0)
-        pbar = iter(tqdm(range(int(1e8)), desc=self.name))
+        pbar = iter(tqdm(range(int(self.n_step)), desc=self.name))
         for t in range(self.start_step, self.n_step): 
             next(pbar)
             self.t = t

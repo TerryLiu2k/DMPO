@@ -10,7 +10,8 @@ os.environ['RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE']='1'
 """
 This section contains run args, separated from args for the RL algorithm and agents
 """
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['OMP_NUM_THREADS']='8'
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 from algorithms.config.CACC_MBPO_conservative import getArgs
 from algorithms.envs.CACC import CACC_slowdown as env_fn
@@ -23,6 +24,7 @@ args.init_checkpoint = None
 args.start_step = 0
 args.debug = False
 args.test = False # if no training, only test
+args.profiling = True
 args.parallel = False
 args.name = 'test'
 args.device = 'cpu'
@@ -35,6 +37,7 @@ algo_args = getArgs(radius_q=args.radius_q, radius=args.radius)
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
+algo_args.batch_size=256
 if args.debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2
@@ -44,6 +47,11 @@ if args.debug:
 if args.test:
     algo_args.n_warmup = 0
     algo_args.n_test = 50
+if args.profiling:
+    algo_args.batch_size=256
+    algo_args.n_step = algo_args.batch_size + 50
+    algo_args.n_test = 1
+    algo_args.max_ep_len = 20
 if args.seed is None:
     args.seed = np.random.randint(65536)
 agent_args = algo_args.agent_args
@@ -58,4 +66,8 @@ if not p_args is None:
 ray.init(ignore_reinit_error = True, num_gpus=len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
 logger = LogServer.remote({'run_args':args, 'algo_args':algo_args}, mute=args.debug or args.test)
 logger = LogClient(logger)
-RL(logger = logger, run_args=args, **algo_args._toDict()).run()
+if args.profiling:
+    import cProfile
+    cProfile.run("RL(logger = logger, run_args=args, **algo_args._toDict()).run()", filename='cpu_parallel.profile')
+else:
+    RL(logger = logger, run_args=args, **algo_args._toDict()).run()
