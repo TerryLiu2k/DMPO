@@ -1,7 +1,7 @@
 from copy import deepcopy
 from torch.multiprocessing import Pool, Process, set_start_method
 import ray
-from .utils import dictSelect, dictSplit, listStack, parallelEval, locate
+from .utils import dictSelect, dictSplit, listStack, parallelEval, sequentialEval, locate
 from .models import *
 from ray.util import pdb as ppdb
 import ipdb as pdb
@@ -364,7 +364,7 @@ class Worker(object):
     
     
 class MultiAgent(nn.Module):
-    def __init__(self, n_agent, env, wrappers, run_args, **agent_args):
+    def __init__(self, n_agent, parallel, env, wrappers, run_args, **agent_args):
         """
             A meta-agent for Multi Agent RL on a factorized environment
             
@@ -408,9 +408,16 @@ class MultiAgent(nn.Module):
             self.p_to_predict = agent_args['p_args'].to_predict
         n_cpu, n_gpu, device = run_args.n_cpu, run_args.n_gpu, run_args.device
         for i in range(n_agent):
-            agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
-                                                                     device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
+            if parallel:
+                agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
+                                                                         device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
+            else:
+                agent = agent_fn(device=device, env=env, logger=logger, **agent_args)
             self.agents.append(agent)
+        if parallel: 
+            self.eval = parallelEval
+        else:
+            self.eval = sequentialEval
         wrappers['p_out'] = listStack
         # (s, r, d)
         wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
@@ -429,7 +436,7 @@ class MultiAgent(nn.Module):
         a = self.act(s, deterministic=False)
         data['a'] = a
         data = self.wrappers['p_in'](data)
-        results = parallelEval(self.agents, 'roll' ,data)
+        results = self.eval(self.agents, 'roll' ,data)
         results = self.wrappers['p_out'](results) # r, s1, d
         if not 'r' in self.p_to_predict:
             s1 = results[1]
@@ -440,7 +447,7 @@ class MultiAgent(nn.Module):
     def updateP(self, **data):
         reward = data['r']
         data_split = self.wrappers['p_in'](data)
-        results = parallelEval(self.agents, 'updateP', data_split)
+        results = self.eval(self.agents, 'updateP', data_split)
         # returns r, s1, d for logging
         results = self.wrappers['p_out'](results)
         results = locate('cpu', *results)
@@ -467,14 +474,14 @@ class MultiAgent(nn.Module):
                  'p_a1': p_a1}
         inputs.update(data)
         inputs = self.wrappers['q_in'](inputs)
-        results = parallelEval(self.agents, 'updateQ', inputs)
+        results = self.eval(self.agents, 'updateQ', inputs)
         
     def _evalQ(self, **data):
         data = {'output_distribution': True, 
                  's': data['s'], 
                  'a': data['a']}
         data = self.wrappers['q_in'](data)
-        results = parallelEval(self.agents, '_evalQ', data)
+        results = self.eval(self.agents, '_evalQ', data)
         results = self.wrappers['q_out'](results)
         return results
         
@@ -485,27 +492,27 @@ class MultiAgent(nn.Module):
                 's': data['s'],
                }
         data = self.wrappers['pi_in'](data)
-        results = parallelEval(self.agents, 'updatePi', data)    
+        results = self.eval(self.agents, 'updatePi', data)    
 
     def act(self, s, deterministic=False, output_distribution=False):
         data = {'s': s, 'deterministic':deterministic, 
                'output_distribution': output_distribution}
         inputs = self.wrappers['pi_in'](data)
-        results = parallelEval(self.agents, 'act', inputs)
+        results = self.eval(self.agents, 'act', inputs)
         if output_distribution:
             return listStack(results)
         else:
             return torch.stack(results, dim=1)
     
     def setEps(self, eps):
-        parallelEval(self.agents, 'setEps', [{'eps': eps}]*len(self.agents))
+        self.eval(self.agents, 'setEps', [{'eps': eps}]*len(self.agents))
         
     def save(self, info=None):
-        parallelEval(self.agents, 'save', [{'info': info}]*len(self.agents))
+        self.eval(self.agents, 'save', [{'info': info}]*len(self.agents))
         ray.get(self.logger.server.save.remote(flush=True))
         
     def load(self, path):
         with open(path, "rb") as file:
             dic = torch.load(file)
-        parallelEval(self.agents, 'load', [{'state_dict': dic}]*len(self.agents))
+        self.eval(self.agents, 'load', [{'state_dict': dic}]*len(self.agents))
         print(f"checkpointed loaded from {path}")

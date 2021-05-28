@@ -31,6 +31,18 @@ def parallelEval(agents, func, args):
     results = ray.get(results)
     return results
 
+def sequentialEval(agents, func, args):
+    """
+    expects a list of dicts
+    """
+    results = []
+    for i, arg in enumerate(args):
+        agent = agents[i]
+        instance_func = getattr(agent, func)
+        result = instance_func(**arg)
+        results.append(result)
+    return results
+
 def gather(k):
     def _gather(tensor):
         """ 
