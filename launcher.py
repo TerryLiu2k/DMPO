@@ -17,8 +17,8 @@ This section contains run args, separated from args for the RL algorithm and age
 """
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 #from algorithms.envs.CACC import CACC_catchup as env_fn
-from algorithms.envs.CACC import CACC_slowdown as env_fn
-from algorithms.config.CACC_SAC import getArgs
+from algorithms.config.ATSC_SAC import getArgs
+from algorithms.envs.ATSC import ATSCGrid as env_fn
 args = Config()
 args.save_period=1800 # in seconds
 args.log_period=int(20)
@@ -27,12 +27,12 @@ args.init_checkpoint = None
 args.start_step = 0
 args.debug = False
 args.test = False # if no training, only test
-args.name = 'baseline'
-args.device = 'cuda'
-args.n_cpu = 1 # per agent
-args.n_gpu = 1/8
+args.name = 'main'
+args.device = 'cpu'
+args.n_cpu = 1/2 # per agent
+args.n_gpu = 0
 args.radius_q=2
-args.radius=1
+args.radius=2
 algo_args = getArgs(radius_q=args.radius_q, radius=args.radius) 
 
 algo_args.env_fn = env_fn
