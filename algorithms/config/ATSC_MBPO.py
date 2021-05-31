@@ -14,10 +14,7 @@ import ray
 """
 
 
-def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, seed=None, init_checkpoint=None):
-    
-    radius_q = 2
-    radius = 1
+def getArgs(radius_q, radius):
     # radius for p and pi
     gather2D = lambda x: _gather2D((5, 5), x)
     reduce2D = lambda x: _reduce2D((5, 5), x)
@@ -38,16 +35,6 @@ def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, see
     algo_args.batch_size=128 # MBPO used 256
     algo_args.n_step=int(1e8)
     algo_args.n_test = 1
-    algo_args.init_checkpoint = init_checkpoint
-    if debug:
-        algo_args.batch_size = 4
-        algo_args.max_ep_len=2
-        algo_args.replay_size=1
-        algo_args.n_warmup=1
-        algo_args.n_test=1
-    if test:
-        algo_args.n_warmup = 0
-        algo_args.n_test = 50
 
     p_args=Config()
     p_args.network = MLP
@@ -60,13 +47,13 @@ def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, see
     NeurComm used 1 layer LSTM of width 64
     """
     p_args.update_interval=1/10
-    p_args.n_embedding = (1+2*radius)
+    p_args.n_embedding = (1+2*radius)**2
     """
      bs=32 interval=4 from rainbow Q
      MBPO retrains fram scratch periodically
      in principle this can be arbitrarily frequent
     """
-    p_args.n_p=7 # ensemble
+    p_args.n_p=2 # ensemble
     p_args.refresh_interval=int(2e3) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
@@ -81,7 +68,7 @@ def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, see
     q_args.update_interval=1/5
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
-    q_args.n_embedding = (2*radius_q)
+    q_args.n_embedding = (1+2*radius_q)**2 - 1
 
     pi_args=Config()
     pi_args.network = MLP
@@ -112,26 +99,9 @@ def main(env_fn, device,  n_cpu, n_gpu, debug=False, name='tmp', test=False, see
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 
-    args = Config()
-    args.save_period=1800 # in seconds
-    args.log_period=int(20)
-    if  seed is None:
-        seed = np.random.randint(65536)
-    args.seed = seed
-    args.test = test
-    args.name = name
-
-    algo_args.env_fn = env_fn
     agent_args.p_args = p_args
     agent_args.q_args = q_args
     agent_args.pi_args = pi_args
     algo_args.agent_args = agent_args
-    args.algo_args = algo_args # do not call toDict() before config is set
-    algo_args.seed = args.seed
         
-    print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
-    # each generated data will be used so many times
-    ray.init(ignore_reinit_error = True, num_gpus=torch.cuda.device_count())
-    logger = LogServer.remote(args, mute=debug or test)
-    logger = LogClient(logger)
-    RL(logger = logger, device=device, n_cpu=n_cpu, n_gpu=n_gpu, **algo_args._toDict()).run()
+    return algo_args

@@ -22,7 +22,7 @@ class ATSCWrapper(gym.Wrapper):
         return state    
     
     def rescaleReward(self, reward, _):
-        return reward*20
+        return reward*20/720*25
         
     def step(self, action):
         """

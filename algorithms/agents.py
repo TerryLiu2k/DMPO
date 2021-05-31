@@ -299,13 +299,13 @@ class MBPO(SAC):
         s, a, r, s1, d = locate(self.alpha.device, s, a, r, s1, d)
         loss = 0
         for i in range(self.n_p):
-            loss_, r_, s1_, d_ =  self.ps[i](s, a, r, s1, d)
+            loss_, s1_ =  self.ps[i](s, a, r, s1, d)
             loss = loss + loss_
         self.p_optimizer.zero_grad()
         loss.sum().backward()
         torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
         self.p_optimizer.step()
-        return r_, s1_, d_
+        return (s1_,)
     
     def roll(self, s, a=None):
         """ batched,
@@ -412,7 +412,7 @@ class MultiAgent(nn.Module):
                 agent = Worker.options(num_gpus = n_gpu, num_cpus=n_cpu).remote(agent_fn=agent_fn,
                                                                          device=device, logger = logger.child(f"{i}"), env=env, **agent_args)
             else:
-                agent = agent_fn(device=device, env=env, logger=logger, **agent_args).to(device)
+                agent = agent_fn(device=device, env=env, logger=logger.child(f"{i}"), **agent_args).to(device)
             self.agents.append(agent)
         if parallel: 
             self.eval = parallelEval
@@ -451,17 +451,6 @@ class MultiAgent(nn.Module):
         # returns r, s1, d for logging
         results = self.wrappers['p_out'](results)
         results = locate('cpu', *results)
-        if not 'r' in self.p_to_predict:
-            reward_, done_ = self.env.state2Reward(results[1])
-            state_error = (results[1] - data['s1'])**2
-            reward_loss = (reward - reward_)**2
-            reward_var = (reward - reward.mean(dim=0, keepdim=True))**2
-            self.logger.log(reward_error = reward_loss.mean(), 
-                           reward_var = reward_var.mean(),
-                           state_error = state_error.mean())
-            debug_reward, done_ = self.env.state2Reward(data['s1'])
-            debug_reward = (debug_reward - reward)**2
-            self.logger.log({'debug/reward_error': debug_reward.mean()})
         
     def updateQ(self, **data):
         """
