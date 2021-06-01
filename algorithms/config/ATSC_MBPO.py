@@ -46,7 +46,7 @@ def getArgs(radius_q, radius):
     MBPO used 4 layers of width 200 or 400
     NeurComm used 1 layer LSTM of width 64
     """
-    p_args.update_interval=1/10
+    p_args.update_interval=10
     p_args.n_embedding = (1+2*radius)**2
     """
      bs=32 interval=4 from rainbow Q
@@ -65,7 +65,7 @@ def getArgs(radius_q, radius):
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
     q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 5] # 4 actions, dueling q learning
-    q_args.update_interval=1/5
+    q_args.update_interval=10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (1+2*radius_q)**2 - 1
@@ -75,7 +75,7 @@ def getArgs(radius_q, radius):
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [12*(1+2*radius)**2, 64, 64, 4] 
-    pi_args.update_interval=1/5
+    pi_args.update_interval=10
 
     agent_args=Config()
     pInWrapper = collect({'s': gather2D(radius), 'a': gather2D(radius), '*': gather2D(0)})

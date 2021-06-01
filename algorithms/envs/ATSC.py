@@ -37,3 +37,6 @@ class ATSCWrapper(gym.Wrapper):
     
 def ATSCGrid():
     return ATSCWrapper()
+
+def ATSCNet():
+    return ATSCWrapper()

@@ -25,19 +25,19 @@ def getArgs(radius_q, radius):
      Only 3e5 samples are needed for parameterized input continous motion control (refer to MBPO)
      4e5 is needed fore model free CACC (refer to NeurComm)
     """
-    algo_args.replay_size=int(1e6)
+    algo_args.replay_size=int(3e4)
     algo_args.max_ep_len=720
-    algo_args.test_interval = int(1e4)
+    algo_args.test_interval = int(5e4)
     algo_args.batch_size=128
     algo_args.n_step=int(1e8)
-    algo_args.n_test = 10
+    algo_args.n_test = 5
 
     q_args=Config()
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
     q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 5] # 4 actions, dueling q learning
-    q_args.update_interval=1
+    q_args.update_interval=100
     # the same as SAC
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
@@ -48,7 +48,7 @@ def getArgs(radius_q, radius):
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [12*(1+2*radius)**2, 64, 64, 4] 
-    pi_args.update_interval=1
+    pi_args.update_interval=100
 
     agent_args=Config()
     qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius_q)})
@@ -65,7 +65,7 @@ def getArgs(radius_q, radius):
     agent_args.alpha=0.2
     agent_args.target_entropy = 0.2
     # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate=5e-3
+    agent_args.target_sync_rate=1e-3
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 

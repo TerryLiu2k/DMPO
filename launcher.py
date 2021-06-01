@@ -12,7 +12,7 @@ This section contains run args, separated from args for the RL algorithm and age
 args = Config()
 #### computation
 os.environ['CUDA_VISIBLE_DEVICES']='1'
-args.n_thread = 1
+args.n_thread = 4
 args.parallel = False
 args.device = 'cpu'
 args.n_cpu = 1/2 # per agent, used only if parallel = True
@@ -24,11 +24,11 @@ args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
-from algorithms.config.ATSC_MBPO import getArgs
+from algorithms.config.ATSC_SAC import getArgs
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
 from algorithms.envs.ATSC import ATSCGrid as env_fn
-args.name = 'large_radius'
+args.name = 'fast_large'
 args.radius_q=3
 args.radius=3
 
