@@ -90,7 +90,6 @@ class RL(object):
     def __init__(self, logger, run_args, env_fn, agent_args,
         n_warmup, batch_size, replay_size, 
        max_ep_len, test_interval, n_step, n_test,
-       p_update_interval=None, q_update_interval=None, pi_update_interval=None,
        **kwargs):
         """ 
         a generic algorithm for single agent model-based actor-critic, 
@@ -130,7 +129,7 @@ class RL(object):
             
         self.env_buffer = ReplayBuffer(max_size=replay_size, action_dtype=action_dtype)
         if not self.p_args is None: # use the model buffer if there is a model
-            self.buffer = ReplayBuffer(max_size=replay_size, action_dtype=action_dtype)
+            self.buffer = ReplayBuffer(max_size=self.p_args.model_buffer_size, action_dtype=action_dtype)
         else:
             self.buffer = self.env_buffer  
 
@@ -141,16 +140,21 @@ class RL(object):
         # update frequency
         p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
         # multiple gradient steps per sample if model based RL
-        self.p_update_steps = 1
         self.q_update_steps = 1
         self.pi_update_steps = 1
         if not self.p_args is None:
+            self.p_update_steps = 1
+            self.p_update_steps_warmup = 1
             self.branch = agent_args.p_args.branch
             self.refresh_interval = self.agent_args.p_args.refresh_interval
             self.p_update_interval = p_args.update_interval
+            self.p_update_interval_warmup = p_args.update_interval_warmup
             if self.p_update_interval < 1:
                 self.p_update_steps = int(1/self.p_update_interval)
                 self.p_update_interval = 1
+            if self.p_update_interval_warmup < 1:
+                self.p_update_steps_warmup = int(1/self.p_update_interval_warmup)
+                self.p_update_interval_warmup = 1
 
         if not self.pi_args is None:
             self.pi_update_interval = pi_args.update_interval
@@ -199,10 +203,19 @@ class RL(object):
         env_buffer, buffer = self.env_buffer, self.buffer
         t = self.t
         # Update handling
-        if not self.p_args is None and (t % self.p_update_interval) == 0 and t>batch_size:
-            for i in range(self.p_update_steps):
-                batch = env_buffer.sampleBatch(batch_size)
-                agent.updateP(**batch)
+            
+        if not self.p_args is None:
+            if t > self.n_warmup:
+                p_update_interval = self.p_update_interval
+                p_update_steps = self.p_update_steps
+            else:
+                p_update_interval = self.p_update_interval_warmup
+                p_update_steps = self.p_update_steps_warmup
+                
+            if (t % p_update_interval) == 0 and t>batch_size:
+                for i in range(p_update_steps):
+                    batch = env_buffer.sampleBatch(batch_size)
+                    agent.updateP(**batch)
 
         if not self.q_args is None and t>self.n_warmup and t % self.q_update_interval == 0:
             for i in range(self.q_update_steps):

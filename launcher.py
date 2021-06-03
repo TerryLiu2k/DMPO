@@ -6,13 +6,14 @@ from algorithms.algorithm import RL
 
 os.environ['RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE']='1'
 
+
 """
 This section contains run args, separated from args for the RL algorithm and agents
 """
 args = Config()
 #### computation
 os.environ['CUDA_VISIBLE_DEVICES']='1'
-args.n_thread = 4
+args.n_thread = 1
 args.parallel = False
 args.device = 'cpu'
 args.n_cpu = 1/2 # per agent, used only if parallel = True
@@ -24,13 +25,13 @@ args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
-from algorithms.config.ATSC_SAC import getArgs
+from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
 from algorithms.envs.ATSC import ATSCGrid as env_fn
-args.name = 'fast_large'
-args.radius_q=3
-args.radius=3
+args.name = 'main_small'
+args.radius_q=2
+args.radius=1
 
 #### checkpoint
 args.init_checkpoint = None
@@ -42,6 +43,13 @@ args.log_period=int(20)
 args.seed = None
 
 algo_args = getArgs(radius_q=args.radius_q, radius=args.radius) 
+agent_args = algo_args.agent_args
+p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
+
+#### override
+#pi_args.update_interval = 10
+#q_args.update_interval = 10
+
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
@@ -67,13 +75,13 @@ if args.profiling:
     algo_args.max_ep_len = 20
 if args.seed is None:
     args.seed = np.random.randint(65536)
-agent_args = algo_args.agent_args
+
 agent_args.parallel = args.parallel
 args.name = f'{args.name}_{env_fn.__name__}_{agent_args.agent.__name__}_{args.seed}'
-p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
+
 
 if not p_args is None:
-    print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/algo_args.replay_size}")
+    print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/p_args.model_buffer_size}")
 # each generated data will be used so many times
 
 import torch

@@ -25,7 +25,7 @@ def getArgs(radius_q, radius):
      Only 3e5 samples are needed for parameterized input continous motion control (refer to MBPO)
      4e5 is needed fore model free CACC (refer to NeurComm)
     """
-    algo_args.replay_size=int(3e4)
+    algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=720
     algo_args.test_interval = int(5e4)
     algo_args.batch_size=128
@@ -65,7 +65,7 @@ def getArgs(radius_q, radius):
     agent_args.alpha=0.2
     agent_args.target_entropy = 0.2
     # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate=1e-3
+    agent_args.target_sync_rate=5e-3
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 

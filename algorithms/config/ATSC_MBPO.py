@@ -20,7 +20,7 @@ def getArgs(radius_q, radius):
     reduce2D = lambda x: _reduce2D((5, 5), x)
 
     algo_args = Config()
-    algo_args.n_warmup=int(2.5e3) # enough for the model to fill the buffer
+    algo_args.n_warmup=int(3e3) 
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
@@ -31,10 +31,10 @@ def getArgs(radius_q, radius):
     """
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=720
-    algo_args.test_interval = int(1e3)
+    algo_args.test_interval = int(2e4)
     algo_args.batch_size=128 # MBPO used 256
     algo_args.n_step=int(1e8)
-    algo_args.n_test = 1
+    algo_args.n_test = 5
 
     p_args=Config()
     p_args.network = MLP
@@ -47,14 +47,16 @@ def getArgs(radius_q, radius):
     NeurComm used 1 layer LSTM of width 64
     """
     p_args.update_interval=10
+    p_args.update_interval_warmup = 1
     p_args.n_embedding = (1+2*radius)**2
+    p_args.model_buffer_size = int(1e4)
     """
      bs=32 interval=4 from rainbow Q
      MBPO retrains fram scratch periodically
      in principle this can be arbitrarily frequent
     """
-    p_args.n_p=2 # ensemble
-    p_args.refresh_interval=int(2e3) # refreshes the model buffer
+    p_args.n_p=3 # ensemble
+    p_args.refresh_interval=int(1e3) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
@@ -95,7 +97,7 @@ def getArgs(radius_q, radius):
     agent_args.alpha=0.2
     agent_args.target_entropy = 0.2
     # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate=1e-3
+    agent_args.target_sync_rate=5e-3
     # called tau in MBPO
     # sync rate per update = update interval/target sync interval
 
