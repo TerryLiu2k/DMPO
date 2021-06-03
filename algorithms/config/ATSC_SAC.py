@@ -36,7 +36,7 @@ def getArgs(radius_q, radius):
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 5] # 4 actions, dueling q learning
+    q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 6] # 5 actions, dueling q learning
     q_args.update_interval=100
     # the same as SAC
     # MBPO used 1/40 for continous control tasks
@@ -47,7 +47,7 @@ def getArgs(radius_q, radius):
     pi_args.network = MLP
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
-    pi_args.sizes = [12*(1+2*radius)**2, 64, 64, 4] 
+    pi_args.sizes = [12*(1+2*radius)**2, 64, 64, 5] 
     pi_args.update_interval=100
 
     agent_args=Config()

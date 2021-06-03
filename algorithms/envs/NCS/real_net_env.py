@@ -13,6 +13,7 @@ import time
 from collections import deque
 from .atsc_env import PhaseMap, PhaseSet, TrafficSimulator
 from .envs.real_net_data.build_file import gen_rou_file
+from gym.spaces import Box, Discrete
 
 sns.set_color_codes()
 
@@ -148,6 +149,10 @@ class RealNetController:
 class RealNetEnv(TrafficSimulator):
     def __init__(self, config, port=0, output_path='', is_record=False, record_stat=False):
         self.flow_rate = config.getint('flow_rate')
+        self.action_space = Discrete(6)
+        self.observation_space=Box(0, 1e6, shape=[22])
+        self.reward_range=None
+        self.metadata=None
         super().__init__(config, output_path, is_record, record_stat, port=port)
 
     def _bfs(self, i):

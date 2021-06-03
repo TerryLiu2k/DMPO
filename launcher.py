@@ -20,18 +20,20 @@ args.n_cpu = 1/2 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = False
+args.debug = True
 args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
-from algorithms.config.ATSC_MBPO import getArgs
+from algorithms.config.RealNet_MBPO import getArgs
+# from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
-from algorithms.envs.ATSC import ATSCGrid as env_fn
-args.name = 'main_small'
-args.radius_q=2
-args.radius=1
+from algorithms.envs.ATSC import ATSCNet as env_fn
+#from algorithms.envs.ATSC import ATSCGrid as env_fn
+args.name = 'main'
+args.radius_q=3
+args.radius=3
 
 #### checkpoint
 args.init_checkpoint = None
@@ -58,6 +60,7 @@ if args.debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2
     algo_args.replay_size=1
+    p_args.model_buffer_size = 4
     algo_args.n_warmup=1
     algo_args.n_test=1
 if args.test:

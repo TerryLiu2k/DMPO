@@ -152,8 +152,10 @@ def collectGraph(method, adjacency):
     adjacency = adjacency > 0
     n = adjacency.shape[0]
     def _collectGraph(tensor):
+        if len(tensor.shape) == 2: # discrete action
+            tensor = tensor.unsqueeze(-1)
         b, n, depth = tensor.shape
-        degree = adjacency.sum(dim=1).max()
+        degree = adjacency.sum(axis=1).max()
         if method == 'reduce':
             result = torch.zeros((b, n, depth), dtype = tensor.dtype, device=tensor.device)
         else:
@@ -169,7 +171,10 @@ def collectGraph(method, adjacency):
                         result[:, i, cnt*depth:(cnt+1)*depth] = tensor[:, j]
                         cnt += 1
         return result
-    return _collectGraph
+    if adjacency.sum() == adjacency.shape[0]:
+        return lambda x: x
+    else:
+        return _collectGraph
     
     
 def collect(dic={}):

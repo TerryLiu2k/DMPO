@@ -1,4 +1,5 @@
 from .NCS.large_grid_env import LargeGridEnv
+from .NCS.real_net_env import RealNetEnv
 import os
 import numpy as np
 import gym
@@ -12,13 +13,14 @@ class ATSCWrapper(gym.Wrapper):
         config = configparser.ConfigParser()
         config.read(config_path)
         config = config['ENV_CONFIG']
-        env = LargeGridEnv(config)
-        super().__init__(env)
         if self.n_agent == 28:
+            env = RealNetEnv(config)
             phases = [env.phase_node_map[node] for node in env.node_names]
             self.n_action = [env.phase_map.get_phase_num(item) for item in phases]
         else:
+            env = LargeGridEnv(config)
             self.n_action = [4]*25
+        super().__init__(env)
         
     def reset(self):
         state = self.env.reset()
@@ -41,7 +43,7 @@ class ATSCWrapper(gym.Wrapper):
         """
         if self.n_agent == 28:
             for i in range(len(action)):
-                if action[i]> self.n_action[i]:
+                if action[i]>= self.n_action[i]:
                     action[i] = np.random.randint(self.n_action[i])
                 
         state, reward, done, info = self.env.step(action)
