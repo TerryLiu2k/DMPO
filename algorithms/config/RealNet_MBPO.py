@@ -92,11 +92,11 @@ def getArgs(radius_q, radius):
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [22*degree_q, 64, 64, 7] # 6 actions, dueling q learning
+    q_args.sizes = [22*degree, 64, 64, 7] # 6 actions, dueling q learning
     q_args.update_interval=10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
-    q_args.n_embedding = degree_q - 1
+    q_args.n_embedding = degree - 1
 
     pi_args=Config()
     pi_args.network = MLP
@@ -108,7 +108,7 @@ def getArgs(radius_q, radius):
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-    qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius_q)})
+    qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius)})
     piInWrapper = collect({'s': gather(radius), 'q': reduce(radius_q)})
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,

@@ -51,7 +51,7 @@ def getArgs(radius_q, radius):
     pi_args.update_interval=100
 
     agent_args=Config()
-    qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius_q)})
+    qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius)})
     piInWrapper = collect({'s': gather2D(radius), 'q': reduce2D(radius_q)})
     wrappers = {'q_in': qInWrapper,
                'pi_in': piInWrapper}

@@ -34,8 +34,8 @@ from algorithms.config.ATSC_SAC import getArgs
 #from algorithms.envs.ATSC import ATSCNet as env_fn
 from algorithms.envs.ATSC import ATSCGrid as env_fn
 args.name = 'main'
-args.radius_q=3
-args.radius=3
+args.radius_q=5
+args.radius=1
 
 #### checkpoint
 args.init_checkpoint = None

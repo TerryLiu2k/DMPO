@@ -82,7 +82,7 @@ def getArgs(radius_q, radius):
     agent_args=Config()
     pInWrapper = collect({'s': gather2D(radius), 'a': gather2D(radius), '*': gather2D(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-    qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius_q)})
+    qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius)})
     piInWrapper = collect({'s': gather2D(radius), 'q': reduce2D(radius_q)})
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,
