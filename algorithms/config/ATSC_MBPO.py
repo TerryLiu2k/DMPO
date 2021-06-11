@@ -66,11 +66,11 @@ def getArgs(radius_q, radius):
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 6] # 5 actions, dueling q learning
+    q_args.sizes = [12*(1+2*radius)**2, 64, 64, 6] # 5 actions, dueling q learning
     q_args.update_interval=10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
-    q_args.n_embedding = (1+2*radius_q)**2 - 1
+    q_args.n_embedding = (1+2*radius)**2 - 1
 
     pi_args=Config()
     pi_args.network = MLP
