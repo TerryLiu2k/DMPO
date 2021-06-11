@@ -20,17 +20,19 @@ args.n_cpu = 1/2 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = True
+args.debug = False
 args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
-from algorithms.config.RealNet_MBPO import getArgs
+#from algorithms.config.RealNet_MBPO import getArgs
 # from algorithms.config.ATSC_MBPO import getArgs
+from algorithms.config.ATSC_SAC import getArgs
+
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
-from algorithms.envs.ATSC import ATSCNet as env_fn
-#from algorithms.envs.ATSC import ATSCGrid as env_fn
+#from algorithms.envs.ATSC import ATSCNet as env_fn
+from algorithms.envs.ATSC import ATSCGrid as env_fn
 args.name = 'main'
 args.radius_q=3
 args.radius=3
