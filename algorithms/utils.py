@@ -70,14 +70,8 @@ def gather(k):
         return lambda x: x
     
 def reduce(k):
+    """Notice that is is sum instead of mean"""
     def _reduce(tensor):
-        """ 
-        for multiple agents aligned along an axis to collect information from their k-hop neighbor
-        input: [b, n_agent, dim], returns [b, n_agent, dim*n_reception_field]
-        action is an one-hot embedding
-        
-        the first is local
-        """
         if len(tensor.shape) == 2: # discrete action
             tensor = tensor.unsqueeze(-1)
         b, n, depth = tensor.shape
@@ -305,7 +299,7 @@ class LogClient(object):
         ray.get(self.server.flush.remote(self))
         self.last_log = time.time()
         
-    def log(self, raw_data=None, rolling=None, **kwargs):
+    def log(self, raw_data=None, **kwargs):
         if raw_data is None:
             raw_data = {}
         raw_data.update(kwargs)
@@ -336,10 +330,7 @@ class LogClient(object):
                     print(f'{key} is nan!')
                    # pdb.set_trace()
                     continue
-                if rolling and key in self.buffer:
-                    self.buffer[key] = self.buffer[key]*(1-1/rolling) + data[key]/rolling
-                else:
-                    self.buffer[key] = data[key]
+                self.buffer[key] = data[key]
 
         # uploading
         if time.time()>self.log_period+self.last_log:
@@ -387,6 +378,7 @@ class LogServer(object):
         self.state_dict = {}
         self.step = 0
         self.step_key = 'interaction'
+        exists_or_mkdir(f"checkpoints/{self.name}")
         
     def getArgs(self):
         return self.args
@@ -423,7 +415,6 @@ class LogServer(object):
         if not state_dict is None:
             self.state_dict.update(state_dict)
         if flush and time.time() - self.last_save >= self.save_period:
-            exists_or_mkdir(f"checkpoints/{self.name}")
             filename = f"{self.step}_{info}.pt"
             if not self.mute:
                 with open(f"checkpoints/{self.name}/{filename}", 'wb') as f:

@@ -6,6 +6,7 @@ import time
 import ray
 import random
 from tqdm import tqdm, trange
+import pickle
 from .utils import combined_shape
 
 class ReplayBuffer:
@@ -171,7 +172,9 @@ class RL(object):
         returns = []
         scaled = []
         lengths = []
+        episodes = []
         for i in trange(self.n_test):
+            episode = []
             test_env = self.test_env
             test_env.reset()
             d, ep_ret, ep_len = np.array([False]), 0, 0
@@ -181,6 +184,7 @@ class RL(object):
                 action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
                 # [b=1, (n_agent), ...]
                 _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
+                episode += [(test_env.state.tolist(), action.numpy().tolist(), r.tolist())]
                 d=np.array(d)
                 ep_ret += r.mean()
                 ep_len += 1
@@ -189,6 +193,7 @@ class RL(object):
                 ep_ret = test_env.rescaleReward(ep_ret, ep_len)
             returns += [ep_ret]
             lengths += [ep_len]
+            episodes += [episode]
         returns = np.stack(returns, axis=0)
         lengths = np.stack(lengths, axis=0)
         self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
@@ -196,6 +201,13 @@ class RL(object):
         print(f"{self.n_test} episodes average accumulated reward: {returns.mean()}")
         if hasattr(test_env, 'rescaleReward'):
             print(f"scaled reward {np.mean(scaled)}")
+        with open(f"checkpoints/{self.name}/test.pickle", "wb") as f:
+            pickle.dump(episodes, f)
+        with open(f"checkpoints/{self.name}/test.txt", "w") as f:
+            for episode in episodes:
+                for step in episode:
+                    f.write(f"{step[0]}, {step[1]}, {step[2]}\n")
+                f.write("\n")
         return returns.mean()
         
     def updateAgent(self):
@@ -276,7 +288,7 @@ class RL(object):
     def run(self):
         # Main loop: collect experience in env and update/log each epoch
         last_save = 0
-        if self.start_step < self.n_warmup:
+        if self.start_step < self.n_warmup and self.pi_args is None: # eps greedy for q learning
             self.agent.setEps(1)
         else:
             self.agent.setEps(0)

@@ -95,7 +95,7 @@ class QLearning(nn.Module):
         self.q_optimizer.step()
 
         # Record things
-        self.logger.log(q_update=None, q_loss=loss_q/2, rolling=100)
+        self.logger.log(q_update=None, q_loss=loss_q/2, reward = r)
         
         # update the target nets
         with torch.no_grad():
@@ -271,7 +271,7 @@ class SAC(QLearning):
                 self.q_optimizer.step()
 
             # Record things
-            self.logger.log(q_update=None, loss_q=loss_q/2)
+            self.logger.log(q_update=None, loss_q=loss_q/2, reward = r)
 
             # update the target nets
             with torch.no_grad():

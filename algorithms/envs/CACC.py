@@ -55,22 +55,15 @@ class CACCWrapper(gym.Wrapper):
         reward = acc_reward*8/episode_len
         return reward
         
-        
     def step(self, action):
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)
         done = np.array([done]*8, dtype=np.float32)
         self.state=state
-        """
-        collision yields -1000*8, while the initial reward is -170, -1600 before collision
-        I am worried if -8000 is a good solution compared with -170*(1/(1-gamma))...
-        
-        gets 1 if locally perfect, -4 and done if collision
-        """
-        return state, (reward+self.bias)/self.std, done, None
+        reward = (reward+self.bias)/self.std
+        return state, np.clip(reward, -5, 5), done, None
 
-        
 
 def CACC_catchup():
     return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=200, std=2000)
