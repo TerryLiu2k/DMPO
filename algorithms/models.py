@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
+from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.categorical import Categorical
 from torch.optim import Adam
 
@@ -35,7 +36,7 @@ class ParameterizedModel(nn.Module):
         the sizes argument does not include the dim of the state
         n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
     """
-    def __init__(self, env, logger, n_embedding=1, to_predict="srd", **net_args):
+    def __init__(self, env, logger, n_embedding=1, to_predict="srd", gaussian, **net_args):
         super().__init__()
         self.logger = logger.child("p")
         self.action_space=env.action_space
@@ -49,9 +50,12 @@ class ParameterizedModel(nn.Module):
         self.state_head = nn.Linear(output_dim, self.observation_space.shape[0])
         self.reward_head = nn.Linear(output_dim, 1)
         self.done_head = nn.Linear(output_dim, 1)
+        self.variance_head = nn.Linear(output_dim, self.observation_space.shape[0])
         self.MSE = nn.MSELoss(reduction='none')
         self.BCE = nn.BCEWithLogitsLoss(reduction='none')
+        self.NLL = nn.GaussianNLLLoss(reduction='none')
         self.to_predict = to_predict
+        self.gaussian = gaussian
 
     def forward(self, s, a, r=None, s1=None, d=None):
         embedding = s
@@ -61,6 +65,8 @@ class ParameterizedModel(nn.Module):
             embedding = embedding + action_embedding
         embedding = self.net(embedding)
         state = self.state_head(embedding)
+        if self.gaussian:
+            variance = self.variance_head(embedding)
         reward = self.reward_head(embedding).squeeze(1)
         
 
@@ -70,12 +76,18 @@ class ParameterizedModel(nn.Module):
                 done = torch.sigmoid(self.done_head(embedding))
                 done = torch.cat([1-done, done], dim = 1)
                 done = Categorical(done).sample() # [b]
+                if self.gaussian:
+                    state = MultivariateNormal(state, torch.diag(variance.square())).sample()
                 return  reward, state, done
 
         else: # training
             done = self.done_head(embedding).squeeze(1)
-            state_loss = self.MSE(state, s1)
-            state_loss = state_loss.mean(dim=1)
+            if not self.gaussian:
+                state_loss = self.MSE(state, s1)
+                state_loss = state_loss.mean(dim=1)
+            else:
+                state_loss = self.NLL(s1, state, variance.square())
+                state_loss = state_loss.mean(dim=1)
             state_var = self.MSE(s1, s1.mean(dim = 0, keepdim=True).expand(*s1.shape))
             # we assume the components of state are of similar magnitude
             rel_state_loss = state_loss.mean()/state_var.mean()
