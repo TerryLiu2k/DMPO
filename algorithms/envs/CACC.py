@@ -7,8 +7,6 @@ import os
 import pdb
 from ..utils import listStack
 
-BIAS = 200
-STD = 2000
 
 class CACCWrapper(gym.Wrapper):
     def __init__(self, config_path, bias=0, std=1):
@@ -75,9 +73,7 @@ class CACCWrapper(gym.Wrapper):
         
 
 def CACC_catchup():
-    print(f"reward scaling bias{BIAS}, std{STD}")
-    return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=BIAS, std=STD)
+    return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=200, std=2000)
 
 def CACC_slowdown():
-    print(f"reward scaling bias{BIAS}, std{STD}")
-    return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini', bias=BIAS, std=STD)
+    return CACCWrapper('NCS/config/config_ma2c_nc_slowdown.ini', bias=300, std=2000)

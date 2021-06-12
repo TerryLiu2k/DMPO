@@ -194,7 +194,8 @@ class RL(object):
         self.logger.log(test_episode_reward=returns, test_episode_len=lengths, test_round=None)
         print(returns)
         print(f"{self.n_test} episodes average accumulated reward: {returns.mean()}")
-        print(f"scaled reward {np.mean(scaled)}")
+        if hasattr(test_env, 'rescaleReward'):
+            print(f"scaled reward {np.mean(scaled)}")
         return returns.mean()
         
     def updateAgent(self):

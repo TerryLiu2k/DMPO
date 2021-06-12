@@ -25,16 +25,21 @@ args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
+from algorithms.config.CACC_SAC import getArgs
 #from algorithms.config.RealNet_MBPO import getArgs
 # from algorithms.config.ATSC_MBPO import getArgs
-from algorithms.config.ATSC_SAC import getArgs
+#from algorithms.config.Prisoner_SAC import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
-#from algorithms.envs.CACC import CACC_slowdown as env_fn
+from algorithms.envs.CACC import CACC_slowdown as env_fn
 #from algorithms.envs.ATSC import ATSCNet as env_fn
-from algorithms.envs.ATSC import ATSCGrid as env_fn
-args.name = 'main'
-args.radius_q=5
+#from algorithms.envs.ATSC import ATSCGrid as env_fn
+""" Multiagent Sanity Check using Prisoner Dilemma"""
+#from algorithms.envs.SanityCheck import Prisoner as env_fn
+#env_fn = env_fn(5)
+
+args.name='r=3'
+args.radius_q=3
 args.radius=1
 
 #### checkpoint
@@ -46,14 +51,16 @@ args.save_period=1800 # in seconds
 args.log_period=int(20)
 args.seed = None
 
-algo_args = getArgs(radius_q=args.radius_q, radius=args.radius) 
+env = env_fn()
+algo_args = getArgs(radius_q=args.radius_q, radius=args.radius, env=env) 
+del env
+
 agent_args = algo_args.agent_args
 p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
 
 #### override
 #pi_args.update_interval = 10
 #q_args.update_interval = 10
-
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn

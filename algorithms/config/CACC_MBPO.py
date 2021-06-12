@@ -89,8 +89,9 @@ def main(env_fn, n_cpu, n_gpu, debug=False,  test=False, seed=None, device=0, in
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-    qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius_q)})
-    piInWrapper = collect({'s': gather(radius), 'q': reduce(radius_q)})
+    qInWrapper = collect({'p_a1':gather(0), 'd': gather(0), 'r': reduce(radius_q) ,'*':gather(radius_q)})
+    # s, a, r, s1, a1, p_a1, d
+    piInWrapper = collect({'s': gather(radius), 'q': gather(0)})
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,
                'pi_in': piInWrapper}

@@ -51,8 +51,9 @@ def getArgs(radius_q, radius):
     pi_args.update_interval=100
 
     agent_args=Config()
-    qInWrapper = collect({'r':gather2D(0), 'd':gather2D(0), 'p_a1':gather2D(0), '*':gather2D(radius)})
-    piInWrapper = collect({'s': gather2D(radius), 'q': reduce2D(radius_q)})
+    qInWrapper = collect({'p_a1':gather2D(0), 'd': gather2D(0), 'r': reduce2D(radius_q) ,'*':gather2D(radius_q)})
+    # s, a, r, s1, a1, p_a1, d
+    piInWrapper = collect({'s': gather2D(radius), 'q': gather2D(0)})
     wrappers = {'q_in': qInWrapper,
                'pi_in': piInWrapper}
     def MultiagentSAC(**agent_args):

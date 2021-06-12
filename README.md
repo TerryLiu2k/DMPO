@@ -6,10 +6,8 @@ Algorithms: (only discrete action supported now)
 3. MBPO 
 4. DMPO: Hyperparameters, design and implementation detail
 * radius and radius_q: 
-    * The observable radius of p should be 1, if the MDP is decomposable.
-    * For q, the observable radius should be at least as large as the reduce radius. 
-        For continous action, all actions are inputs of Q, it is easy to compute $dQ_i/da_j$.
-        For discrete action? It is non-trivial, I think the best way is to compute Q multiple times.
+    * The observable radius of p should be 1, if the MDP is decomposable. While I assume the radius of pi can be larger.
+    * The Q of each agent predicts the k-hop mean reward. (Alternatively, we may sum the k-hop local Qs, but that cannot be elegantly implemented for discrete action multiagent and requires computing Q multiple times to get the derivative against the action of each agent)
     
 Features:
 * Object Oriented Ontology
@@ -37,6 +35,7 @@ Features:
 
 Interface:
 The state, reward, done should all be numpy arrays
+For MARL, done should be given for each agent, although we assume they are the same
 
 Usage:
 ```python

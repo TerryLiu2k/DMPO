@@ -121,7 +121,6 @@ class QCritic(nn.Module):
         if n_embedding != 0:
             self.action_embedding = nn.Embedding(self.action_space.n, self.state_per_agent)
 
-       
     def forward(self, state, output_distribution, action=None):
         """
         action is only used for decentralized multiagent

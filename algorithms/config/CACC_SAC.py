@@ -10,7 +10,7 @@ import ray
     smaller tau (1e-3 instead of 1e-5) less frequent update (5 instead of 20)
 """
     
-def getArgs(radius_q, radius):
+def getArgs(radius_q, radius, env):
     # radius for p and pi
 
     algo_args = Config()
@@ -25,7 +25,7 @@ def getArgs(radius_q, radius):
     """
     algo_args.replay_size=int(1e6)
     algo_args.max_ep_len=600
-    algo_args.test_interval = int(1e3)
+    algo_args.test_interval = int(3e4)
     algo_args.batch_size=256 # the same as MBPO
     algo_args.n_step=int(1e8)
     algo_args.n_test = 10
@@ -52,8 +52,9 @@ def getArgs(radius_q, radius):
     agent_args=Config()
     pInWrapper = collect({'s': gather(radius), 'a': gather(radius), '*': gather(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-    qInWrapper = collect({'r':gather(0), 'd':gather(0), 'p_a1':gather(0), '*':gather(radius_q)})
-    piInWrapper = collect({'s': gather(radius), 'q': reduce(radius_q)})
+    qInWrapper = collect({'p_a1':gather(0), 'd': gather(0), 'r': reduce(radius_q) ,'*':gather(radius_q)})
+    # s, a, r, s1, a1, p_a1, d
+    piInWrapper = collect({'s': gather(radius), 'q': gather(0)})
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,
                'pi_in': piInWrapper}
