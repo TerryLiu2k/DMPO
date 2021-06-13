@@ -14,7 +14,7 @@ import ray
 """
 
 
-def getArgs(radius_q, radius):
+def getArgs(radius_q, radius_p, radius_pi, env):
     # radius for p and pi
     gather2D = lambda x: _gather2D((5, 5), x)
     reduce2D = lambda x: _reduce2D((5, 5), x)
@@ -40,7 +40,7 @@ def getArgs(radius_q, radius):
     p_args.network = MLP
     p_args.activation=torch.nn.ReLU
     p_args.lr=3e-4
-    p_args.sizes = [12*(1+2*radius)**2, 64, 64, 64] 
+    p_args.sizes = [12*(1+2*radius_p)**2, 64, 64, 64]
     """
     SAC used 2 layers of width 256 for all experiments,
     MBPO used 4 layers of width 200 or 400
@@ -48,7 +48,7 @@ def getArgs(radius_q, radius):
     """
     p_args.update_interval=10
     p_args.update_interval_warmup = 1
-    p_args.n_embedding = (1+2*radius)**2
+    p_args.n_embedding = (1+2*radius_p)**2
     p_args.model_buffer_size = int(1e4)
     """
      bs=32 interval=4 from rainbow Q
@@ -61,30 +61,32 @@ def getArgs(radius_q, radius):
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
     p_args.to_predict = 'srd'
+    # enable in gaussian
+    p_args.gaussian = True
 
     q_args=Config()
     q_args.network = MLP
     q_args.activation=torch.nn.ReLU
     q_args.lr=3e-4
-    q_args.sizes = [12*(1+2*radius)**2, 64, 64, 6] # 5 actions, dueling q learning
+    q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 6] # 5 actions, dueling q learning
     q_args.update_interval=10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
-    q_args.n_embedding = (1+2*radius)**2 - 1
+    q_args.n_embedding = (1+2*radius_q)**2 - 1
 
     pi_args=Config()
     pi_args.network = MLP
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
-    pi_args.sizes = [12*(1+2*radius)**2, 64, 64, 5] 
+    pi_args.sizes = [12*(1+2*radius_pi)**2, 64, 64, 5]
     pi_args.update_interval=10
 
     agent_args=Config()
-    pInWrapper = collect({'s': gather2D(radius), 'a': gather2D(radius), '*': gather2D(0)})
+    pInWrapper = collect({'s': gather2D(radius_p), 'a': gather2D(radius_p), '*': gather2D(0)})
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
     qInWrapper = collect({'p_a1':gather2D(0), 'd': gather2D(0), 'r': reduce2D(radius_q) ,'*':gather2D(radius_q)})
     # s, a, r, s1, a1, p_a1, d
-    piInWrapper = collect({'s': gather2D(radius), 'q': gather2D(0)})
+    piInWrapper = collect({'s': gather2D(radius_pi), 'q': gather2D(0)})
     wrappers = {'p_in': pInWrapper,
                'q_in': qInWrapper,
                'pi_in': piInWrapper}
