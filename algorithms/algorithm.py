@@ -90,7 +90,7 @@ class ReplayBuffer:
 class RL(object):
     def __init__(self, logger, run_args, env_fn, agent_args,
         n_warmup, batch_size, replay_size, 
-       max_ep_len, test_interval, n_step, n_test,
+       max_ep_len, test_interval, n_step, n_test, env_step_per_iter,
        **kwargs):
         """ 
         a generic algorithm for single agent model-based actor-critic, 
@@ -259,6 +259,8 @@ class RL(object):
                 buffer.storeBatch(s, a, r, s1, d)
                 if len(buffer.data) >= buffer.max_size:
                     break
+                s = s1
+                a = self.agent.act(s)
             batch = env_buffer.sampleBatch(batch_size)
             
     def step(self):
@@ -300,7 +302,8 @@ class RL(object):
             if t % self.test_interval == 0:
                 mean_return = self.test()
                 self.agent.save(info = mean_return) # automatically save once per save_period seconds
-                
+
+
             self.step()
             
             if not self.p_args is None and t >=self.n_warmup \

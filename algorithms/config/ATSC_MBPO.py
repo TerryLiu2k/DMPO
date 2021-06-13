@@ -20,7 +20,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     reduce2D = lambda x: _reduce2D((5, 5), x)
 
     algo_args = Config()
-    algo_args.n_warmup=int(3e3) 
+    algo_args.n_warmup=10#int(3e3) mod
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
@@ -34,7 +34,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     algo_args.test_interval = int(2e4)
     algo_args.batch_size=128 # MBPO used 256
     algo_args.n_step=int(1e8)
-    algo_args.n_test = 5
+    algo_args.n_test = 1#5 mod
 
     p_args=Config()
     p_args.network = MLP
