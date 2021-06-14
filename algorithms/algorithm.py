@@ -114,6 +114,7 @@ class RL(object):
         self.agent = agent
         
         self.batch_size = batch_size
+        self.p_batch_size = self.p_args.batch_size
         self.n_step = n_step
         self.max_ep_len = max_ep_len
 
@@ -230,7 +231,7 @@ class RL(object):
                 
             if (t % p_update_interval) == 0 and t>batch_size:
                 for i in range(p_update_steps):
-                    batch = env_buffer.sampleBatch(batch_size)
+                    batch = env_buffer.sampleBatch(self.p_batch_size)
                     agent.updateP(**batch)
 
         if not self.q_args is None and t>self.n_warmup and t % self.q_update_interval == 0:
@@ -319,11 +320,11 @@ class RL(object):
                 mean_return = self.test()
                 self.agent.save(info = mean_return) # automatically save once per save_period seconds
 
-            env_step_now
-            for i in range(self.env_step_per_iter):
+            env_step_now = self.env_step_warm if t < self.n_warmup else self.env_step_per_iter
+            for i in range(env_step_now):
                 self.step()
             
-            if not self.p_args is None and t >=self.n_warmup \
+            if self.p_args is not None and t >=self.n_warmup \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
                 self.roll()
                 

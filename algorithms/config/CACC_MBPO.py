@@ -13,8 +13,8 @@ import ray
 """
 
 
-def main(env_fn, n_cpu, n_gpu, debug=False,  test=False, seed=None, device=0, init_checkpoint=None):
-    
+def getArgs(radius_q, radius_p, radius_pi, env):
+
     radius_q = 1
     radius = 1
     # radius for p and pi

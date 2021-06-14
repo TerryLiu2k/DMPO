@@ -17,7 +17,7 @@ os.environ['CUDA_VISIBLE_DEVICES']='1'
 args.n_thread = 1
 args.parallel = False
 args.device = 'cpu'
-args.n_cpu = 1/2 # per agent, used only if parallel = True
+args.n_cpu = 1/12 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
@@ -27,6 +27,7 @@ args.profiling = False
 
 #### algorithm and environment
 #from algorithms.config.CACC_SAC import getArgs
+#from algorithms.config.CACC_MBPO_conservative import getArgs
 #from algorithms.config.RealNet_MBPO import getArgs
 from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
@@ -71,7 +72,7 @@ algo_args.env_fn = env_fn
 args.env_fn = env_fn
 algo_args.batch_size=128
 algo_args.env_step_per_iter = 1
-algo_args.env_step_warm = 30
+algo_args.env_step_warm = 1
 if args.debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2

@@ -157,7 +157,7 @@ class QCritic(nn.Module):
             # [b, a+1]
             v = q[:, -1:]
             q = q[:, :-1]
-            q = q - q.mean(dim=1, keepdim=True) + v
+            #q = q - q.mean(dim=1, keepdim=True) + v
             if output_distribution: 
                 # q for all actions
                 return q

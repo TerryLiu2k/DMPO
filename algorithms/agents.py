@@ -1,4 +1,6 @@
 from copy import deepcopy
+
+import torch
 from torch.multiprocessing import Pool, Process, set_start_method
 import ray
 from .utils import dictSelect, dictSplit, listStack, parallelEval, sequentialEval, locate
@@ -206,12 +208,13 @@ class SAC(QLearning):
             q = q - self.alpha.detach() * logp
             optimum = q.max(dim=1, keepdim=True)[0].detach()
             regret = optimum - (pi*q).sum(dim=1)
-            loss = regret.mean()
+            #loss = regret.mean()
+            loss = -(pi*q).sum(dim=1).mean()
             entropy = -(pi*logp).sum(dim=1).mean(dim=0)
             if not self.target_entropy is None:
                 alpha_loss = (entropy.detach()-self.target_entropy)*self.alpha
                 loss = loss + alpha_loss
-            self.logger.log(pi_entropy=entropy, pi_regret=loss, alpha=self.alpha)
+            self.logger.log(pi_entropy=entropy, pi_regret=regret.mean(), alpha=self.alpha)
         else:
             action, logp = self.pi(s)
             q1 = self.q1(s, action)
@@ -249,7 +252,7 @@ class SAC(QLearning):
                 # Target actions come from *current* policy
                 # local a1 distribution
                 loga1 = torch.log(p_a1)
-                q1_pi_targ = self.q1_target(s1, True, a1) 
+                q1_pi_targ = self.q1_target(s1, True, a1)
                 q2_pi_targ = self.q2_target(s1, True, a1)  # [b, n_a]
                 q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ) - self.alpha.detach() * loga1
                 q_pi_targ = (p_a1*q_pi_targ).sum(dim=1)

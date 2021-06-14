@@ -20,7 +20,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     reduce2D = lambda x: _reduce2D((5, 5), x)
 
     algo_args = Config()
-    algo_args.n_warmup=100
+    algo_args.n_warmup=3000
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
@@ -56,7 +56,8 @@ def getArgs(radius_q, radius_p, radius_pi, env):
      in principle this can be arbitrarily frequent
     """
     p_args.n_p=3 # ensemble
-    p_args.refresh_interval=10#int(1e3) # refreshes the model buffer
+    p_args.refresh_interval=50#int(1e3) # refreshes the model buffer
+    p_args.batch_size = 8
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
