@@ -70,7 +70,7 @@ agent_args.target_entropy = 0.4
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
 algo_args.batch_size=128
-algo_args.env_step_per_iter = 1
+algo_args.env_step_per_iter = 30
 if args.debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2

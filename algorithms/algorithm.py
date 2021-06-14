@@ -121,6 +121,7 @@ class RL(object):
         
         self.test_interval = test_interval
         self.n_test = n_test
+        self.env_step_per_iter = env_step_per_iter
         
         # Experience buffer
         if isinstance(self.env.action_space, gym.spaces.Discrete):
@@ -303,8 +304,8 @@ class RL(object):
                 mean_return = self.test()
                 self.agent.save(info = mean_return) # automatically save once per save_period seconds
 
-
-            self.step()
+            for i in range(self.env_step_per_iter):
+                self.step()
             
             if not self.p_args is None and t >=self.n_warmup \
                 and (t% self.refresh_interval == 0 or len(self.buffer.data) == 0):
