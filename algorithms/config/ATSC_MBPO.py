@@ -20,7 +20,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     reduce2D = lambda x: _reduce2D((5, 5), x)
 
     algo_args = Config()
-    algo_args.n_warmup=1500
+    algo_args.n_warmup=100
     """
      rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
      bs256lr3e-4, it takes 2e4updates
@@ -30,6 +30,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
      4e5 is needed fore model free CACC (refer to NeurComm)
     """
     algo_args.replay_size=int(1e6)
+    algo_args.imm_size = 2880
     algo_args.max_ep_len=720
     algo_args.test_interval = int(2e4)
     algo_args.batch_size=128 # MBPO used 256
@@ -49,20 +50,20 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     p_args.update_interval=10
     p_args.update_interval_warmup = 1
     p_args.n_embedding = (1+2*radius_p)**2
-    p_args.model_buffer_size = int(1e4)
     """
      bs=32 interval=4 from rainbow Q
      MBPO retrains fram scratch periodically
      in principle this can be arbitrarily frequent
     """
     p_args.n_p=3 # ensemble
-    p_args.refresh_interval=int(1e3) # refreshes the model buffer
+    p_args.refresh_interval=10#int(1e3) # refreshes the model buffer
     # ideally rollouts should be used only once
     p_args.branch=1
     p_args.roll_length=1 # length > 1 not implemented yet
     p_args.to_predict = 'srd'
-    # enable in gaussian
+    # enable in gaussian commit
     p_args.gaussian = True
+    p_args.model_buffer_size = int(algo_args.imm_size / p_args.refresh_interval * algo_args.batch_size * p_args.branch)
 
     q_args=Config()
     q_args.network = MLP
@@ -70,6 +71,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     q_args.lr=3e-4
     q_args.sizes = [12*(1+2*radius_q)**2, 64, 64, 6] # 5 actions, dueling q learning
     q_args.update_interval=10
+    q_args.update_steps=10
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (1+2*radius_q)**2 - 1
@@ -79,7 +81,8 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     pi_args.activation=torch.nn.ReLU
     pi_args.lr=3e-4
     pi_args.sizes = [12*(1+2*radius_pi)**2, 64, 64, 5]
-    pi_args.update_interval=10
+    pi_args.update_interval=20
+    pi_args.update_steps=2
 
     agent_args=Config()
     pInWrapper = collect({'s': gather2D(radius_p), 'a': gather2D(radius_p), '*': gather2D(0)})

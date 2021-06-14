@@ -89,8 +89,8 @@ class ReplayBuffer:
 
 class RL(object):
     def __init__(self, logger, run_args, env_fn, agent_args,
-        n_warmup, batch_size, replay_size, 
-       max_ep_len, test_interval, n_step, n_test, env_step_per_iter,
+        n_warmup, batch_size, replay_size, imm_size,
+       max_ep_len, test_interval, n_step, n_test, env_step_per_iter, env_step_warm,
        **kwargs):
         """ 
         a generic algorithm for single agent model-based actor-critic, 
@@ -122,6 +122,7 @@ class RL(object):
         self.test_interval = test_interval
         self.n_test = n_test
         self.env_step_per_iter = env_step_per_iter
+        self.env_step_warm = env_step_warm
         
         # Experience buffer
         if isinstance(self.env.action_space, gym.spaces.Discrete):
@@ -130,10 +131,11 @@ class RL(object):
             action_dtype = torch.float
             
         self.env_buffer = ReplayBuffer(max_size=replay_size, action_dtype=action_dtype)
+        self.imm_buffer = ReplayBuffer(max_size=imm_size, action_dtype=action_dtype)
         if not self.p_args is None: # use the model buffer if there is a model
             self.buffer = ReplayBuffer(max_size=self.p_args.model_buffer_size, action_dtype=action_dtype)
         else:
-            self.buffer = self.env_buffer  
+            self.buffer = self.env_buffer
 
         # warmups
         self.n_warmup = n_warmup
@@ -142,8 +144,8 @@ class RL(object):
         # update frequency
         p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
         # multiple gradient steps per sample if model based RL
-        self.q_update_steps = 1
-        self.pi_update_steps = 1
+        self.q_update_steps = q_args.update_steps
+        self.pi_update_steps = pi_args.update_steps
         if not self.p_args is None:
             self.p_update_steps = 1
             self.p_update_steps_warmup = 1
@@ -246,7 +248,7 @@ class RL(object):
             updates the buffer using model rollouts, using the most recent samples in env_buffer
             stops when the buffer is full (max_size + bacthsize -1) or the env_buffer is exhausted
         """
-        env_buffer = self.env_buffer
+        """env_buffer = self.env_buffer
         buffer = self.buffer
         batch_size = self.batch_size
         env_buffer._rewind()
@@ -262,7 +264,19 @@ class RL(object):
                     break
                 s = s1
                 a = self.agent.act(s)
-            batch = env_buffer.sampleBatch(batch_size)
+            batch = env_buffer.sampleBatch(batch_size)"""
+        imm_buffer = self.imm_buffer
+        buffer = self.buffer
+        batch = imm_buffer.sampleBatch(self.batch_size)
+        s = batch['s']
+        a = self.agent.act(s)
+        for i in range(self.branch):
+            r, s1, d = self.agent.roll(s=s)
+            buffer.storeBatch(s, a, r, s1, d)
+            if len(buffer.data) >= buffer.max_size:
+                break
+            s = s1
+            a = self.agent.act(s)
             
     def step(self):
         env = self.env
@@ -283,6 +297,7 @@ class RL(object):
             d = np.zeros(d.shape, dtype=np.float32)
         d = np.array(d)
         self.env_buffer.store(state, a, r, s1, d)
+        self.imm_buffer.store(state, a, r, s1, d)
         if d.any() or (self.episode_len == self.max_ep_len):
             """ for compatibility, allow different agents to have different done"""
             self.logger.log(episode_reward=self.episode_reward.mean(), episode_len=self.episode_len, episode=None)
@@ -304,6 +319,7 @@ class RL(object):
                 mean_return = self.test()
                 self.agent.save(info = mean_return) # automatically save once per save_period seconds
 
+            env_step_now
             for i in range(self.env_step_per_iter):
                 self.step()
             

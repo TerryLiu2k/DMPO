@@ -70,7 +70,8 @@ agent_args.target_entropy = 0.4
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
 algo_args.batch_size=128
-algo_args.env_step_per_iter = 30
+algo_args.env_step_per_iter = 1
+algo_args.env_step_warm = 30
 if args.debug:
     algo_args.batch_size = 4
     algo_args.max_ep_len=2
@@ -99,8 +100,8 @@ agent_args.parallel = args.parallel
 args.name = f'{args.name}_{env_fn.__name__}_{agent_args.agent.__name__}_{args.seed}'
 
 
-if not p_args is None:
-    print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/p_args.model_buffer_size}")
+#if not p_args is None:
+#    print(f"rollout reuse:{(p_args.refresh_interval/q_args.update_interval*algo_args.batch_size)/p_args.model_buffer_size}")
 # each generated data will be used so many times
 
 import torch
