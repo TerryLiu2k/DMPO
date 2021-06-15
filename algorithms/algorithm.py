@@ -8,6 +8,7 @@ import random
 from tqdm import tqdm, trange
 import pickle
 from .utils import combined_shape
+from algorithms.envs.flow.envs.base import Env
 
 class ReplayBuffer:
     """
@@ -183,12 +184,24 @@ class RL(object):
             test_env.reset()
             d, ep_ret, ep_len = np.array([False]), 0, 0
             while not(d.any() or (ep_len == self.max_ep_len)):
-                # Take deterministic actions at test time 
-                state = torch.as_tensor(test_env.state, dtype=torch.float)
+                # Take deterministic actions at test time
+                if not hasattr(test_env, 'state') or test_env.state is None:
+                    state_gotten = test_env.get_state()
+                else:
+                    state_gotten = test_env.state
+                if not isinstance(state_gotten, np.ndarray):
+                    state_gotten = test_env.other2array(state_gotten)
+                state = torch.as_tensor(state_gotten, dtype=torch.float)
                 action = self.agent.act(state.unsqueeze(0), deterministic=True).squeeze(0)
                 # [b=1, (n_agent), ...]
                 _, r, d, _ = test_env.step(action.cpu().numpy().squeeze())
-                episode += [(test_env.state.tolist(), action.numpy().tolist(), r.tolist())]
+                if not hasattr(test_env, 'state') or test_env.state is None:
+                    state_gotten = test_env.get_state()
+                else:
+                    state_gotten = test_env.state
+                if not isinstance(state_gotten, np.ndarray):
+                    state_gotten = test_env.other2array(state_gotten)
+                episode += [(state_gotten.tolist(), action.numpy().tolist(), r.tolist())]
                 d=np.array(d)
                 ep_ret += r.mean()
                 ep_len += 1
@@ -281,7 +294,13 @@ class RL(object):
             
     def step(self):
         env = self.env
-        state = env.state
+        if not hasattr(env, 'state') or env.state is None:
+            state_gotten = env.get_state()
+        else:
+            state_gotten = env.state
+        if not isinstance(state_gotten, np.ndarray):
+            state_gotten = env.other2array(state_gotten)
+        state = state_gotten
         state = torch.as_tensor(state, dtype=torch.float)
         a = self.agent.act(torch.as_tensor(state, dtype=torch.float).unsqueeze(0))    
         a = a.squeeze(0).detach().cpu().numpy()

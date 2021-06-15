@@ -35,7 +35,7 @@ class ATSCWrapper(gym.Wrapper):
         return state    
     
     def rescaleReward(self, reward, _):
-        return reward*20/720*self.n_agent
+        return reward*200/720*self.n_agent
         
     def step(self, action):
         """
@@ -57,7 +57,10 @@ class ATSCWrapper(gym.Wrapper):
         reward = np.array(reward, dtype=np.float32)
         done = np.array([done]*self.n_agent, dtype=np.float32)
         self.state=state
-        return state, reward/20, done, None
+        return state, reward/200, done, None
+
+    def get_state(self):
+        return self.state
     
 def ATSCGrid():
     return ATSCWrapper("algorithms/envs/NCS/config/config_ma2c_nc_grid.ini", 25)

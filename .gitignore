@@ -13,3 +13,5 @@ _build/
 **/checkpoints
 **/wandb
 **/ild.out
+/runs
+*.profile

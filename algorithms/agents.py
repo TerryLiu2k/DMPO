@@ -138,7 +138,6 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env, q_args, gamma, 0, target_sync_rate, **kwargs)
-        
         self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         self.target_entropy = target_entropy
         
@@ -149,7 +148,7 @@ class SAC(QLearning):
         else:
             self.pi = CategoricalActor(**pi_args._toDict())
                                 
-        if not target_entropy is None:
+        if target_entropy is not None:
             pi_params = itertools.chain(self.pi.parameters(), [self.alpha])
         else:
             pi_params = self.pi.parameters()                   
@@ -211,7 +210,7 @@ class SAC(QLearning):
             #loss = regret.mean()
             loss = -(pi*q).sum(dim=1).mean()
             entropy = -(pi*logp).sum(dim=1).mean(dim=0)
-            if not self.target_entropy is None:
+            if self.target_entropy is not None:
                 alpha_loss = (entropy.detach()-self.target_entropy)*self.alpha
                 loss = loss + alpha_loss
             self.logger.log(pi_entropy=entropy, pi_regret=regret.mean(), alpha=self.alpha)

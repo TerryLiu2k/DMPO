@@ -64,6 +64,9 @@ class CACCWrapper(gym.Wrapper):
         reward = (reward+self.bias)/self.std
         return state, np.clip(reward, -5, 5), done, None
 
+    def get_state(self):
+        return self.state
+
 
 def CACC_catchup():
     return CACCWrapper('NCS/config/config_ma2c_nc_catchup.ini', bias=200, std=2000)
