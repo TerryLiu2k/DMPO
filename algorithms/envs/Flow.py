@@ -54,19 +54,19 @@ class FlowGridWrapper(MultiTrafficLightGridPOEnv):
         s1, r, d, i = super().step(rl_actions)
         return self.other2array(s1), self.other2array(r), self.other2array(d), self.other2array(i)
 
-def FlowGrid():
+def FlowGrid(render=False):
     # Experiment parameters
     N_ROLLOUTS = 63  # number of rollouts per training iteration
     N_CPUS = 63  # number of parallel workers
 
     # Environment parameters
-    HORIZON = 400  # time horizon of a single rollout
+    HORIZON = 720  # time horizon of a single rollout
     V_ENTER = 30  # enter speed for departing vehicles
     INNER_LENGTH = 300  # length of inner edges in the traffic light grid network
     LONG_LENGTH = 100  # length of final edge in route
     SHORT_LENGTH = 300  # length of edges that vehicles start on
     # number of vehicles originating in the left, right, top, and bottom edges
-    N_LEFT, N_RIGHT, N_TOP, N_BOTTOM = 1, 1, 1, 1
+    N_LEFT, N_RIGHT, N_TOP, N_BOTTOM = 7, 10, 9, 8
 
     EDGE_INFLOW = 300  # inflow rate of vehicles at every edge
     N_ROWS = 3  # number of row of bidirectional lanes
@@ -123,7 +123,9 @@ def FlowGrid():
         sim=SumoParams(
             restart_instance=True,
             sim_step=1,
-            render=False,
+            render=render,
+            no_step_log=True,
+            print_warnings=False
         ),
 
         # environment related parameters (see flow.core.params.EnvParams)
@@ -182,11 +184,53 @@ def FlowGrid():
 
 
 class RingAttenuationWrapper(MultiAgentWaveAttenuationPOEnv):
-    def state(self):
-        return self.get_state()
+    def __get_state(self):
+        state = super().get_state()
+        state = list(state.values())
+        if not hasattr(self, 'keys') or self.keys is None:
+            if isinstance(state, dict):
+                self.keys = list(state.keys())
+            else:
+                self.keys = list(super().get_state().keys())
+        return np.stack(state, axis=0)
+
+    def other2array(self, state):
+        if isinstance(state, dict):
+            state = list(state.values())
+        if not hasattr(self, 'keys') or self.keys is None:
+            if isinstance(state, dict):
+                self.keys = list(state.keys())
+            else:
+                self.keys = list(super().get_state().keys())
+        if isinstance(state, list):
+            state = np.stack(state, axis=0)
+        return state
+
+    def apply_rl_actions(self, rl_actions=None):
+        if isinstance(rl_actions, np.ndarray):
+            while rl_actions.ndim > 2:
+                rl_actions.squeeze(axis=0)
+            rl_actions = list(rl_actions)
+        if isinstance(rl_actions, list):
+            if self.keys is None:
+                self.keys = list(super().get_state().keys())
+            rl_actions = dict(zip(self.keys, rl_actions))
+        super().apply_rl_actions(rl_actions)
+
+    def step(self, rl_actions=None):
+        if isinstance(rl_actions, np.ndarray):
+            while rl_actions.ndim > 2:
+                rl_actions.squeeze(axis=0)
+            rl_actions = list(rl_actions)
+        if isinstance(rl_actions, list):
+            if self.keys is None:
+                self.keys = list(super().get_state().keys())
+            rl_actions = dict(zip(self.keys, rl_actions))
+        s1, r, d, i = super().step(rl_actions)
+        return self.other2array(s1), self.other2array(r), self.other2array(d), self.other2array(i)
 
 
-def RingAttenuation():
+def RingAttenuation(render=False):
     # time horizon of a single rollout
     HORIZON = 3000
     # number of rollouts per training iteration
@@ -238,9 +282,10 @@ def RingAttenuation():
 
         # sumo-related parameters (see flow.core.params.SumoParams)
         sim=SumoParams(
-            sim_step=0.1,
-            render=False,
-            restart_instance=False
+            sim_step=0.01,
+            render=render,
+            restart_instance=False,
+            no_step_log=True
         ),
 
         # environment related parameters (see flow.core.params.EnvParams)
@@ -278,4 +323,7 @@ def RingAttenuation():
 
     # Register as rllib env
     register_env(env_name, create_env)
-    return RingAttenuationWrapper(create_env())
+
+    env = create_env()
+    env.__class__ = RingAttenuationWrapper
+    return env

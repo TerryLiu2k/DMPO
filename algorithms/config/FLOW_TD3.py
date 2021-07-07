@@ -3,7 +3,7 @@ from ..utils import Config, collect
 from ..utils import gather2D as _gather2D
 from ..utils import reduce2D as _reduce2D
 from ..models import MLP
-from ..agents import MBPO, MultiAgent
+from ..agents import SAC, MultiAgent
 
 def getArgs(radius_q, radius_p, radius_pi, env):
     gather2D = lambda x: _gather2D((3, 3), x)
@@ -30,24 +30,16 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     algo_args.n_step = int(1e8)
     algo_args.n_test = 5
 
+    p_args = None
+    """
     p_args = Config()
     p_args.network = MLP
     p_args.activation = torch.nn.ReLU
     p_args.lr = 3e-4
     p_args.sizes = [obs_dim * (1 + 2 * radius_p) ** 2, 64, 64, 64]
-    """
-    SAC used 2 layers of width 256 for all experiments,
-    MBPO used 4 layers of width 200 or 400
-    NeurComm used 1 layer LSTM of width 64
-    """
     p_args.update_interval = 10
     p_args.update_interval_warmup = 1
     p_args.n_embedding = (1 + 2 * radius_p) ** 2
-    """
-     bs=32 interval=4 from rainbow Q
-     MBPO retrains fram scratch periodically
-     in principle this can be arbitrarily frequent
-    """
     p_args.n_p = 3  # ensemble
     p_args.refresh_interval = 50  # int(1e3) # refreshes the model buffer
     p_args.batch_size = 8
@@ -58,7 +50,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     # enable in gaussian commit
     p_args.gaussian = True
     p_args.model_buffer_size = int(algo_args.imm_size / p_args.refresh_interval * algo_args.batch_size * p_args.branch)
-
+    """
     q_args = Config()
     q_args.network = MLP
     q_args.activation = torch.nn.ReLU
@@ -88,12 +80,12 @@ def getArgs(radius_q, radius_p, radius_pi, env):
                 'q_in': qInWrapper,
                 'pi_in': piInWrapper}
 
-    def MultiagentMBPO(**agent_args):
-        agent_args['agent'] = MBPO
+    def MultiagentTD3(**agent_args):
+        agent_args['agent'] = SAC
         return MultiAgent(**agent_args)
 
     agent_args.wrappers = wrappers
-    agent_args.agent = MultiagentMBPO
+    agent_args.agent = MultiagentTD3
     agent_args.n_agent = 9
     agent_args.gamma = 0.99
     agent_args.alpha = 0

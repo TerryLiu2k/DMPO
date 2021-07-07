@@ -31,13 +31,15 @@ args.profiling = False
 #from algorithms.config.RealNet_MBPO import getArgs
 #from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
-from algorithms.config.FLOW_DMPO import getArgs
+#from algorithms.config.FLOW_DMPO import getArgs
+from algorithms.config.Ring_DMPO import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
 #from algorithms.envs.ATSC import ATSCNet as env_fn
 #from algorithms.envs.ATSC import ATSCGrid as env_fn
-from algorithms.envs.Flow import FlowGrid as env_fn
+#from algorithms.envs.Flow import FlowGrid as env_fn
+from algorithms.envs.Flow import RingAttenuation as env_fn
 """ Multiagent Sanity Check using Prisoner Dilemma"""
 #from algorithms.envs.SanityCheck import Prisoner as env_fn
 #env_fn = env_fn(5)

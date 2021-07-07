@@ -115,7 +115,10 @@ class RL(object):
         self.agent = agent
         
         self.batch_size = batch_size
-        self.p_batch_size = self.p_args.batch_size
+        if self.p_args is not None:
+            self.p_batch_size = self.p_args.batch_size
+        else:
+            self.p_batch_size = 64
         self.n_step = n_step
         self.max_ep_len = max_ep_len
 

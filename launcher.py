@@ -17,7 +17,7 @@ os.environ['CUDA_VISIBLE_DEVICES']='1'
 args.n_thread = 1
 args.parallel = False
 args.device = 'cpu'
-args.n_cpu = 1/12 # per agent, used only if parallel = True
+args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
@@ -32,6 +32,7 @@ args.profiling = False
 #from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
 from algorithms.config.FLOW_DMPO import getArgs
+#from algorithms.config.FLOW_TD3 import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
@@ -68,7 +69,7 @@ p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_ar
 #pi_args.update_interval = 10
 #q_args.update_interval = 10
 #algo_args.n_warmup = 0
-agent_args.target_entropy = 0.4
+#agent_args.target_entropy = 0.4
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
@@ -88,8 +89,9 @@ if args.test:
     algo_args.n_step = 1
 if args.profiling:
     algo_args.batch_size=128
+    algo_args.n_warmup = 0
     if algo_args.agent_args.p_args is None:
-        algo_args.n_step = 50
+        algo_args.n_step = 20
     else:
         algo_args.n_step = algo_args.batch_size + 10
         algo_args.replay_size = 1000

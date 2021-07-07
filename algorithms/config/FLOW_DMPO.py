@@ -25,7 +25,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     algo_args.replay_size = int(1e6)
     algo_args.imm_size = 2880
     algo_args.max_ep_len = 720
-    algo_args.test_interval = int(2e4)
+    algo_args.test_interval = int(4e3)
     algo_args.batch_size = 128  # MBPO used 256
     algo_args.n_step = int(1e8)
     algo_args.n_test = 5
@@ -76,7 +76,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     pi_args.lr = 3e-4
     pi_args.sizes = [obs_dim * (1 + 2 * radius_pi) ** 2, 64, 64, action_dim]
     pi_args.update_interval = 20
-    pi_args.update_steps = 2
+    pi_args.update_steps = 4
 
     agent_args = Config()
     pInWrapper = collect({'s': gather2D(radius_p), 'a': gather2D(radius_p), '*': gather2D(0)})
@@ -94,7 +94,7 @@ def getArgs(radius_q, radius_p, radius_pi, env):
 
     agent_args.wrappers = wrappers
     agent_args.agent = MultiagentMBPO
-    agent_args.n_agent = 25
+    agent_args.n_agent = 9
     agent_args.gamma = 0.99
     agent_args.alpha = 0
     agent_args.target_entropy = None

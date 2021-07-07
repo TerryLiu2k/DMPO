@@ -68,7 +68,7 @@ p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_ar
 #pi_args.update_interval = 10
 #q_args.update_interval = 10
 #algo_args.n_warmup = 0
-agent_args.target_entropy = 0.4
+agent_args.target_entropy = 0
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn

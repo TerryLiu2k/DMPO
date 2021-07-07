@@ -79,7 +79,7 @@ class ParameterizedModel(nn.Module):
                 done = torch.cat([1-done, done], dim = 1)
                 done = Categorical(done).sample() # [b]
                 if self.gaussian:
-                    state = MultivariateNormal(state.view(-1), covariance_matrix=sq_variance.view(-1).diag()).sample().view(state_size)
+                    state = torch.normal(state, variance.square())
                 return  reward, state, done
 
         else: # training
