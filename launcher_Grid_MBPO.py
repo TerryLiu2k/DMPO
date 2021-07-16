@@ -21,7 +21,7 @@ args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = True
+args.debug = False
 args.test = False # if no training, only test
 args.profiling = False
 
@@ -31,9 +31,8 @@ args.profiling = False
 #from algorithms.config.RealNet_MBPO import getArgs
 #from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
-#from algorithms.config.FLOW_DMPO import getArgs
+from algorithms.config.FLOW_DMPO import getArgs
 #from algorithms.config.FLOW_TD3 import getArgs
-from algorithms.config.FLOW_NeurComm import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
@@ -44,7 +43,7 @@ from algorithms.envs.Flow import FlowGrid as env_fn
 #from algorithms.envs.SanityCheck import Prisoner as env_fn
 #env_fn = env_fn(5)
 
-args.name='no_entropy'
+args.name='large_entropy'
 args.radius_q=3
 args.radius_pi=1
 args.radius_p=1
@@ -55,15 +54,14 @@ args.init_checkpoint = None
 args.start_step = 0
 
 #### misc
-args.save_period=4000 # in seconds
+args.save_period=1800 # in seconds
 args.log_period=int(20)
 args.seed = None
 
 env = env_fn()
-algo_args = getArgs(radius_q=args.radius_q, radius_p=args.radius_p, radius_pi=args.radius_pi, env=env)
+algo_args = getArgs(radius_q=args.radius_q, radius_p=args.radius_p, radius_pi=args.radius_pi, env=env) 
 del env
 
-args.n_step = algo_args.n_step
 agent_args = algo_args.agent_args
 p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
 
@@ -101,7 +99,7 @@ if args.profiling:
     algo_args.n_test = 1
     algo_args.max_ep_len = 20
 if args.seed is None:
-    args.seed = int(time.time()*1000) % 65536
+    args.seed = int(time.time()*1000)%65536
 
 agent_args.parallel = args.parallel
 args.name = f'{args.name}_{env_fn.__name__}_{agent_args.agent.__name__}_{args.seed}'
@@ -117,11 +115,8 @@ print(f"n_threads {torch.get_num_threads()}")
 print(f"n_gpus {torch.cuda.device_count()}")
 
 ray.init(ignore_reinit_error = True, num_gpus=len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
-agent = algo_args.agent_args.agent
-algo_args.agent_args.agent = None
 logger = LogServer.remote({'run_args':args, 'algo_args':algo_args}, mute=args.debug or args.test or args.profiling)
 logger = LogClient(logger)
-algo_args.agent_args.agent = agent
 if args.profiling:
     import cProfile
     cProfile.run("RL(logger = logger, run_args=args, **algo_args._toDict()).run()",

@@ -1,3 +1,5 @@
+import logging
+
 from ..envs.flow.envs.multiagent import MultiTrafficLightGridPOEnv, MultiAgentWaveAttenuationPOEnv
 from ..envs.flow.networks import TrafficLightGridNetwork, RingNetwork
 from ..envs.flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams
@@ -9,6 +11,15 @@ from ..envs.flow.utils.registry import make_create_env
 import numpy as np
 
 class FlowGridWrapper(MultiTrafficLightGridPOEnv):
+    def __init__(self, env_params, sim_params, network, simulator):
+        super().__init__(env_params, sim_params, network, simulator=simulator)
+        self.n_s_ls, self.n_a_ls, self.coop_gamma, self.distance_mask, self.neighbor_mask \
+            = [], [], -1, np.zeros((9, 9)), np.zeros((9, 9))
+        self.init_neighbor_mask()
+        self.init_distance_mask()
+        self.n_s_ls = [42] * 9
+        self.n_a_ls = [2] * 9
+
     def __get_state(self):
         state = super().get_state()
         state = list(state.values())
@@ -53,6 +64,33 @@ class FlowGridWrapper(MultiTrafficLightGridPOEnv):
             rl_actions = dict(zip(self.keys, rl_actions))
         s1, r, d, i = super().step(rl_actions)
         return self.other2array(s1), self.other2array(r), self.other2array(d), self.other2array(i)
+
+    def init_neighbor_mask(self):
+        for x in range(3):
+            for y in range(3):
+                for xx in range(x-1, x+2):
+                    for yy in range(y-1, y+2):
+                        if x!=xx and y!=yy and 0 <=xx< 3 and 0<=yy<3:
+                            self.neighbor_mask[y*3+x, yy*3+xx] = 1
+
+    def init_distance_mask(self):
+        block0 = np.array([[0, 1, 2], [1, 0, 1], [2, 1, 0]])
+        block1 = block0 + 1
+        block2 = block0 + 2
+        row0 = np.hstack([block0, block1, block2])
+        row1 = np.hstack([block1, block0, block1])
+        row2 = np.hstack([block2, block1, block0])
+        self.distance_mask = np.vstack([row0, row1, row2])
+
+    def init(self):
+        self.n_s_ls, self.n_a_ls, self.coop_gamma, self.distance_mask, self.neighbor_mask \
+            = [], [], -1, np.zeros((9, 9)), np.zeros((9, 9))
+        self.init_neighbor_mask()
+        self.init_distance_mask()
+        self.n_s_ls = [42] * 9
+        self.n_a_ls = [2] * 9
+        
+        
 
 def FlowGrid(render=False):
     # Experiment parameters
@@ -180,6 +218,7 @@ def FlowGrid(render=False):
     register_env(env_name, create_env)
     env = create_env()
     env.__class__ = FlowGridWrapper
+    env.init()
     return env
 
 

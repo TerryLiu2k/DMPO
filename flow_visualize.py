@@ -44,7 +44,7 @@ from algorithms.envs.Flow import FlowGrid
 #env_fn = env_fn(5)
 
 def rendered_env_fn():
-    return FlowGrid(render=False)
+    return FlowGrid(render=True)
 env_fn = rendered_env_fn
 
 args.name='large_entropy'
@@ -53,8 +53,8 @@ args.radius_pi=1
 args.radius_p=1
 
 #### checkpoint
-#args.init_checkpoint = "checkpoints/large_entropy_FlowGrid_MultiagentMBPO_32151/32000_None.pt"
-args.init_checkpoint = None
+args.init_checkpoint = "checkpoints/large_entropy_FlowGrid_MultiagentMBPO_58513/84000_None.pt"
+#args.init_checkpoint = None
 args.start_step = 0
 
 #### misc
@@ -73,7 +73,7 @@ p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_ar
 #pi_args.update_interval = 10
 #q_args.update_interval = 10
 #algo_args.n_warmup = 0
-agent_args.target_entropy = 0.4
+#agent_args.target_entropy = 0.4
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn

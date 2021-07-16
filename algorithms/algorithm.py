@@ -148,9 +148,6 @@ class RL(object):
 
         # update frequency
         p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_args
-        # multiple gradient steps per sample if model based RL
-        self.q_update_steps = q_args.update_steps
-        self.pi_update_steps = pi_args.update_steps
         if not self.p_args is None:
             self.p_update_steps = 1
             self.p_update_steps_warmup = 1
@@ -166,15 +163,18 @@ class RL(object):
                 self.p_update_interval_warmup = 1
 
         if not self.pi_args is None:
+            self.pi_update_steps = pi_args.update_steps
             self.pi_update_interval = pi_args.update_interval
             if self.pi_update_interval < 1:
                 self.pi_update_steps = int(1/self.pi_update_interval)
                 self.pi_update_interval = 1
 
-        self.q_update_interval = q_args.update_interval
-        if self.q_update_interval < 1:
-            self.q_update_steps = int(1/self.q_update_interval)
-            self.q_update_interval = 1
+        if not self.q_args is None:
+            self.q_update_steps = q_args.update_steps
+            self.q_update_interval = q_args.update_interval
+            if self.q_update_interval < 1:
+                self.q_update_steps = int(1/self.q_update_interval)
+                self.q_update_interval = 1
 
     def test(self):
         returns = []
@@ -353,4 +353,4 @@ class RL(object):
             if t == self.n_warmup:
                 self.agent.setEps(0)
                 
-            self.updateAgent()        
+            self.updateAgent()
