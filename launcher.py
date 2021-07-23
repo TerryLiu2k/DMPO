@@ -21,7 +21,7 @@ args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = True
+args.debug = False
 args.test = False # if no training, only test
 args.profiling = False
 
@@ -33,13 +33,15 @@ args.profiling = False
 #from algorithms.config.Prisoner_SAC import getArgs
 #from algorithms.config.FLOW_DMPO import getArgs
 #from algorithms.config.FLOW_TD3 import getArgs
-from algorithms.config.FLOW_NeurComm import getArgs
+#from algorithms.config.FLOW_NeurComm import getArgs
+from algorithms.config.Cityflow66_DMPO import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
 #from algorithms.envs.ATSC import ATSCNet as env_fn
 #from algorithms.envs.ATSC import ATSCGrid as env_fn
-from algorithms.envs.Flow import FlowGrid as env_fn
+#from algorithms.envs.Flow import FlowGrid as env_fn
+from algorithms.envs.CityFlow import CFGrid6_6 as env_fn
 """ Multiagent Sanity Check using Prisoner Dilemma"""
 #from algorithms.envs.SanityCheck import Prisoner as env_fn
 #env_fn = env_fn(5)

@@ -195,10 +195,10 @@ def dictSelect(dic, idx, dim=1):
     assert dim == 0 or dim ==1
     for key in dic:
         if isinstance(dic[key], torch.Tensor):
-            if dim == 0:
+            if dim == 0 or dic[key].dim() < 2:
                 result[key] = dic[key][idx]
             else:
-                result[key] = dic[key][:,idx]
+                result[key] = dic[key][:, idx]
         elif isinstance(dic[key], torch.nn.ModuleList):
             result[key] = dic[key][idx]
         else:
