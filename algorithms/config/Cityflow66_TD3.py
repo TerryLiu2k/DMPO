@@ -57,8 +57,8 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     q_args.activation = torch.nn.ReLU
     q_args.lr = 3e-4
     q_args.sizes = [obs_dim * (1 + 2 * radius_q) ** 2, 64, 64, action_dim + 1]  # 5 actions, dueling q learning
-    q_args.update_interval = 5
-    q_args.update_steps = 5
+    q_args.update_interval = 1
+    q_args.update_steps = 1
     # MBPO used 1/40 for continous control tasks
     # 1/20 for invert pendulum
     q_args.n_embedding = (1 + 2 * radius_q) ** 2 - 1
