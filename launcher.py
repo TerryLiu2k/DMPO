@@ -26,15 +26,13 @@ args.test = False # if no training, only test
 args.profiling = False
 
 #### algorithm and environment
-#from algorithms.config.CACC_SAC import getArgs
-#from algorithms.config.CACC_MBPO_conservative import getArgs
-#from algorithms.config.RealNet_MBPO import getArgs
-#from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
 #from algorithms.config.FLOW_DMPO import getArgs
 #from algorithms.config.FLOW_TD3 import getArgs
 #from algorithms.config.FLOW_NeurComm import getArgs
-from algorithms.config.Cityflow66_DMPO import getArgs
+#from algorithms.config.Cityflow66_DMPO import getArgs
+from algorithms.config.Cityflow66_TD3 import getArgs
+
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn
 #from algorithms.envs.CACC import CACC_slowdown as env_fn
@@ -47,7 +45,7 @@ from algorithms.envs.CityFlow import CFGrid6_6 as env_fn
 #env_fn = env_fn(5)
 
 args.name='no_entropy'
-args.radius_q=3
+args.radius_q=5
 args.radius_pi=1
 args.radius_p=1
 

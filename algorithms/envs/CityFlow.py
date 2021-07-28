@@ -17,7 +17,7 @@ def concat(d:dict):
     return l
 
 class CFGrid6_6(AnonEnv):
-    def __init__(self):
+    def __init__(self, test = False):
         memo = '0515_afternoon_Colight_6_6_bi'
         gui = False
         road_net = '6_6'
