@@ -143,8 +143,9 @@ class SAC(QLearning):
             q_net is the network class
         """
         super().__init__(logger, env, q_args, gamma, 0, target_sync_rate, **kwargs)
-        self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32)) if target_entropy is not None \
-            else torch.tensor(alpha, dtype=torch.float32)
+        self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
+        if target_entropy is None:
+            self.alpha.requires_grad = False
         self.target_entropy = target_entropy
         
         self.eps = 0

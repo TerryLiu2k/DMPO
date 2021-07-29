@@ -13,11 +13,11 @@ This section contains run args, separated from args for the RL algorithm and age
 """
 args = Config()
 #### computation
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 args.n_thread = 1
 args.parallel = False
-args.device = 'cpu'
-args.n_cpu = 1/4 # per agent, used only if parallel = True
+args.device = 'cuda'
+args.n_cpu = 1/8 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general

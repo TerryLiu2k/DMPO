@@ -204,7 +204,7 @@ class RL(object):
                     state_gotten = test_env.state
                 if not isinstance(state_gotten, np.ndarray):
                     state_gotten = test_env.other2array(state_gotten)
-                episode += [(state_gotten.tolist(), action.numpy().tolist(), r.tolist())]
+                episode += [(state_gotten.tolist(), action.cpu().numpy().tolist(), r.tolist())]
                 d = np.array(d)
                 ep_ret += r.mean()
                 ep_len += 1
