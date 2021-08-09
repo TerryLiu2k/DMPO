@@ -429,7 +429,8 @@ class MultiAgent(nn.Module):
             self.eval = sequentialEval
         wrappers['p_out'] = listStack
         # (s, r, d)
-        wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
+        if not wrappers.__contains__('q_out') or wrappers['q_out'] is None:
+            wrappers['q_out'] = lambda x: torch.stack(x, dim=1)
         # (a)
         self.wrappers = wrappers
 
@@ -487,7 +488,7 @@ class MultiAgent(nn.Module):
         q = self._evalQ(**data)
         # a list of qs
         data = {'q': q,
-                's': data['s'],
+                's': data['s']
                }
         data = self.wrappers['pi_in'](data)
         results = self.eval(self.agents, 'updatePi', data)    
@@ -712,4 +713,154 @@ class NeurCommWrapper(NeurComm):
         """Parameter deterministic has no effect."""
         return self.forward(s, np.array([False]*self.n_agent), )
 
+class SAC_New(SAC):
+    def __init__(self, logger, env, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs):
+        super(SAC_New, self).__init__(logger, env, q_args, pi_args, gamma, target_entropy, target_sync_rate, alpha=0, **kwargs)
+        self.q1 = QCritic_New(env, **q_args._toDict())
+        self.q2 = QCritic_New(env, **q_args._toDict())
+        self.q1_target = deepcopy(self.q1)
+        self.q2_target = deepcopy(self.q2)
+        for p in self.q1_target.parameters():
+            p.requires_grad = False
+        for p in self.q2_target.parameters():
+            p.requires_grad = False
+
+    def updatePi(self, s, q = None):
+        s = s.to(self.alpha.device)
+        if not q is None:
+            q = q.to(self.alpha.device)
+        if isinstance(self.action_space, Discrete):
+            pi = self.pi(s) + 1e-5  # avoid nan
+            logp = torch.log(pi)
+            a = Categorical(pi).sample().view(-1, 1)
+            pi_a = torch.gather(pi, dim=1, index=a)
+            logpi_a = torch.log(pi_a)
+            if q is None:
+                q1 = self.q1(s)
+                q2 = self.q2(s)
+                q = torch.min(q1, q2)
+            q = q - self.alpha.detach()
+            #q = q - self.alpha.detach() * logp
+            #optimum = q.max(dim=1, keepdim=True)[0].detach()
+            #regret = optimum - (pi * q).sum(dim=1)
+            # loss = regret.mean()
+            #loss = -(pi * q).sum(dim=1).mean()
+            loss = -(q * logpi_a).sum(dim=1).mean(dim=0)
+            entropy = -(pi * logp).sum(dim=1).mean(dim=0)
+            if self.target_entropy is not None:
+                alpha_loss = (entropy.detach() - self.target_entropy) * self.alpha
+                loss = loss + alpha_loss
+            #self.logger.log(pi_entropy=entropy, pi_regret=regret.mean(), alpha=self.alpha)
+            self.logger.log(pi_entropy=entropy, alpha=self.alpha)
+        else:
+            action, logp = self.pi(s)
+            q1 = self.q1(s, action)
+            q2 = self.q2(s, action)
+            q = torch.min(q1, q2)
+            q = q - self.alpha.detach() * logp
+            loss = (-q).mean()
+            self.logger.log(logp=logp, pi_reward=q)
+
+        self.pi_optimizer.zero_grad()
+        if not torch.isnan(loss).any():
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(parameters=self.pi.parameters(), max_norm=5, norm_type=2)
+            self.pi_optimizer.step()
+            if self.alpha < 0:
+                self.alpha.data = torch.tensor(0, dtype=torch.float).to(self.alpha.device)
+
+    def updateQ(self, s, a, r, s1, d, a1=None, p_a1=None):
+        """
+            uses alpha to encourage diversity
+            for discrete action spaces, different from QLearning since we have a policy network
+                takes all possible next actions
+            a1 is determinisitc actions of neighborhood,
+            only used for decentralized multiagent
+            the distribution of local action is recomputed
+        """
+        s, a, r, s1, d, a1, p_a1 = locate(self.alpha.device, s, a, r, s1, d, a1, p_a1)
+        q1 = self.q1(s, False, a)
+        q2 = self.q2(s, False, a)
+
+        if isinstance(self.action_space, Discrete):
+            # Bellman backup for Q functions
+            with torch.no_grad():
+                # Target actions come from *current* policy
+                # local a1 distribution
+                loga1 = torch.log(p_a1)
+                entropy = -(p_a1 * loga1).sum(dim=1, keepdim=True)
+                q1_pi_targ = self.q1_target(s1, False, a1)
+                q2_pi_targ = self.q2_target(s1, False, a1)  # [b, n_a]
+                q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ) - self.alpha.detach() * entropy
+                #q_pi_targ = (p_a1 * q_pi_targ).sum(dim=1)
+                backup = r + self.gamma * (1 - d) * (q_pi_targ).squeeze()
+
+            # MSE loss against Bellman backup
+            loss_q1 = ((q1.squeeze() - backup) ** 2).mean()
+            loss_q2 = ((q2.squeeze() - backup) ** 2).mean()
+            loss_q = loss_q1 + loss_q2
+
+            # Useful info for logging
+            self.logger.log(q=q_pi_targ, q_diff=((q1 + q2) / 2 - backup).mean())
+
+            # First run one gradient descent step for Q1 and Q2
+            self.q_optimizer.zero_grad()
+            if not torch.isnan(loss_q).any():
+                loss_q.backward()
+                torch.nn.utils.clip_grad_norm_(parameters=self.q_params, max_norm=5, norm_type=2)
+                self.q_optimizer.step()
+
+            # Record things
+            self.logger.log(q_update=None, loss_q=loss_q / 2, reward=r)
+
+            # update the target nets
+            with torch.no_grad():
+                for current, target in [(self.q1, self.q1_target), (self.q2, self.q2_target)]:
+                    for p, p_targ in zip(current.parameters(), target.parameters()):
+                        p_targ.data.mul_(1 - self.target_sync_rate)
+                        p_targ.data.add_(self.target_sync_rate * p.data)
+
+class MBPO_New(SAC_New):
+    def __init__(self, env, logger, p_args, **kwargs):
+        """
+            q_net is the network class
+        """
+        super().__init__(logger, env, **kwargs)
+        self.n_p = p_args.n_p
+        if isinstance(self.action_space, Box): #continous
+            ps = [None for i in range(self.n_p)]
+        else:
+            ps = [ParameterizedModel(env, logger,**p_args._toDict()) for i in range(self.n_p)]
+        self.ps = nn.ModuleList(ps)
+        self.p_params = itertools.chain(*[item.parameters() for item in self.ps])
+        self.p_optimizer = Adam(self.p_params, lr=p_args.lr)
+        
+    def updateP(self, s, a, r, s1, d):
+        s, a, r, s1, d = locate(self.alpha.device, s, a, r, s1, d)
+        loss = 0
+        for i in range(self.n_p):
+            loss_, s1_ =  self.ps[i](s, a, r, s1, d)
+            loss = loss + loss_
+        self.p_optimizer.zero_grad()
+        loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(parameters=self.p_params, max_norm=5, norm_type=2)
+        self.p_optimizer.step()
+        return (s1_,)
+    
+    def roll(self, s, a=None):
+        """ batched,
+            a is None as long as single agent 
+            (if multiagent, set a to prevent computing .act() redundantly)
+        """
+        s, a = locate(self.alpha.device, s, a)
+        p = self.ps[np.random.randint(self.n_p)]
+        
+        with torch.no_grad():
+            if isinstance(self.action_space, Discrete):
+                if a is None:
+                    a = self.act(s, deterministic=False)
+                r, s1, d = p(s, a)
+            else:
+                return None
+        return  r, s1, d
 

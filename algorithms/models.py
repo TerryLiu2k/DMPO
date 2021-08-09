@@ -95,10 +95,10 @@ class ParameterizedModel(nn.Module):
                 rel_state_loss = state_loss.mean() / state_var.mean()
                 self.logger.log(rel_state_loss=rel_state_loss)
             else:
-                state_loss = self.NLL(state, s1, sq_variance.square())
+                state_loss = self.NLL(state, s1, sq_variance)
                 if state_loss.dim() > 1:
                     state_loss = state_loss.mean(dim=1)
-                self.logger.log(state_nll_loss=state_loss, var_mean=sq_variance.square().mean())
+                self.logger.log(state_nll_loss=state_loss, var_mean=sq_variance.mean())
 
             loss = state_loss
             if 'r' in self.to_predict:
@@ -171,6 +171,49 @@ class QCritic(nn.Module):
                 q = torch.gather(input=q, dim=1, index=action.unsqueeze(-1))
                 return q.squeeze(dim=1)
 
+
+class QCritic_New(nn.Module):
+    def __init__(self, env, n_embedding=0, **q_args):
+        super().__init__()
+        q_net = q_args['network']
+        self.action_space = env.action_space
+        self.q = q_net(**q_args)
+        self.n_embedding = n_embedding
+        input_dim = q_args['sizes'][0]
+        #self.state_per_agent = input_dim // (n_embedding + 1)
+        if n_embedding != 0:
+            #self.action_embedding = nn.Embedding(self.action_space.n, self.state_per_agent)
+            self.action_embedding = nn.Embedding(self.action_space.n, self.n_embedding)
+
+    def forward(self, state, output_distribution, action=None):
+        """
+        action is only used for decentralized multiagent
+        """
+        if isinstance(self.action_space, Box):
+            q = self.q(torch.cat([state, action], dim=-1))
+        else:
+            if self.n_embedding > 0:
+                # multiagent
+                batch_size, _ = action.shape
+                action_embedding = self.action_embedding(action).view(batch_size, -1)
+                #action_embedding[:, :self.state_per_agent] = 0
+                state = torch.cat([state, action_embedding], dim=-1)
+                #action = action[:, 0]
+            q = self.q(state)
+            while len(q.shape) > 2:
+                q = q.squeeze(-1)  # HW of size 1 if CNN
+            return q
+            # [b, a+1]
+            #v = q[:, -1:]
+            #q = q[:, :-1]
+            # q = q - q.mean(dim=1, keepdim=True) + v
+            #if output_distribution:
+                # q for all actions
+                #return q
+            #else:
+                # q for a particular action
+                #q = torch.gather(input=q, dim=1, index=action.unsqueeze(-1))
+                #return q.squeeze(dim=1)
 
 class CategoricalActor(nn.Module):
     """ 
