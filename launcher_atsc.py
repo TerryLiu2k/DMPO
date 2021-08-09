@@ -2,6 +2,7 @@ import os
 import numpy as np
 import time
 import ray
+#from torch._C import T
 from algorithms.utils import Config, LogClient, LogServer
 from algorithms.algorithm import RL
 
@@ -29,7 +30,7 @@ args.profiling = False
 #from algorithms.config.CACC_SAC import getArgs
 #from algorithms.config.CACC_MBPO_conservative import getArgs
 #from algorithms.config.RealNet_MBPO import getArgs
-from algorithms.config.ATSC_MBPO import getArgs
+from algorithms.config.ATSC_SAC_New import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
 #from algorithms.config.FLOW_DMPO import getArgs
 
@@ -42,8 +43,8 @@ from algorithms.envs.ATSC import ATSCGrid as env_fn
 #from algorithms.envs.SanityCheck import Prisoner as env_fn
 #env_fn = env_fn(5)
 
-args.name='large_entropy'
-args.radius_q=2
+args.name='no_entropy_edited_Q'
+args.radius_q=3
 args.radius_pi=1
 args.radius_p=1
 
@@ -68,7 +69,7 @@ p_args, q_args, pi_args = agent_args.p_args, agent_args.q_args, agent_args.pi_ar
 #pi_args.update_interval = 10
 #q_args.update_interval = 10
 #algo_args.n_warmup = 0
-agent_args.target_entropy = 0
+#agent_args.target_entropy = 0
 
 algo_args.env_fn = env_fn
 args.env_fn = env_fn
@@ -77,9 +78,10 @@ algo_args.env_step_per_iter = 1
 algo_args.env_step_warm = 1
 if args.debug:
     algo_args.batch_size = 4
-    algo_args.max_ep_len=2
+    algo_args.max_ep_len=20
     algo_args.replay_size=1
-    p_args.model_buffer_size = 4
+    if p_args is not None:
+        p_args.model_buffer_size = 4
     algo_args.n_warmup=1
     algo_args.n_test=1
 if args.test:

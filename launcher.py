@@ -16,7 +16,7 @@ args = Config()
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 args.n_thread = 1
 args.parallel = False
-args.device = 'cuda'
+args.device = 'cpu'
 args.n_cpu = 1/8 # per agent, used only if parallel = True
 args.n_gpu = 0
 
@@ -45,7 +45,7 @@ from algorithms.envs.CityFlow import CFGrid6_6 as env_fn
 #env_fn = env_fn(5)
 
 args.name='no_entropy'
-args.radius_q=5
+args.radius_q=7
 args.radius_pi=1
 args.radius_p=1
 
