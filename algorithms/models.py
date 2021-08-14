@@ -121,6 +121,99 @@ class ParameterizedModel(nn.Module):
             return (loss, state.detach())
 
 
+class ParameterizedModel_New(nn.Module):
+    """
+        assumes parameterized state representation
+        we may use a gaussian prediciton,
+        but it degenrates without a kl hyperparam
+        unlike the critic and the actor class, 
+        the sizes argument does not include the dim of the state
+        n_embedding is the number of embedding modules needed, = the number of discrete action spaces used as input
+    """
+
+    def __init__(self, env, logger, n_embedding=1, to_predict="srd", gaussian=False, **net_args):
+        super().__init__()
+        self.logger = logger.child("p")
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.n_embedding = n_embedding
+        if isinstance(self.action_space, Discrete):
+            self.action_embedding = nn.Embedding(self.action_space.n, n_embedding)
+        output_dim = net_args['sizes'][-1]
+        """input_dim = net_args['sizes'][0]
+        output_dim = net_args['sizes'][-1]
+        self.n_embedding = n_embedding
+        if isinstance(self.action_space, Discrete):
+            self.action_embedding = nn.Embedding(self.action_space.n, input_dim // n_embedding)"""
+        self.net = MLP(**net_args)
+        self.state_head = nn.Linear(output_dim, self.observation_space.shape[0])
+        self.reward_head = nn.Linear(output_dim, 1)
+        self.done_head = nn.Linear(output_dim, 1)
+        self.variance_head = nn.Linear(output_dim, self.observation_space.shape[0])
+        self.MSE = nn.MSELoss(reduction='none')
+        self.BCE = nn.BCEWithLogitsLoss(reduction='none')
+        self.NLL = nn.GaussianNLLLoss(reduction='none')
+        self.to_predict = to_predict
+        self.gaussian = gaussian
+
+    def forward(self, s, a, r=None, s1=None, d=None):
+        if isinstance(self.action_space, Discrete):
+            batch_size, _ = a.shape
+            action_embedding = self.action_embedding(a).view(batch_size, -1)
+        embedding = torch.cat([s, action_embedding], dim=1)
+        embedding = self.net(embedding)
+        state = self.state_head(embedding)
+        state_size = state.size()
+        reward = self.reward_head(embedding).squeeze(1)
+        if self.gaussian:
+            variance = self.variance_head(embedding)
+            sq_variance = variance.square()
+
+        if r is None:  # inference
+            with torch.no_grad():
+                done = torch.sigmoid(self.done_head(embedding))
+                done = torch.cat([1 - done, done], dim=1)
+                done = Categorical(done).sample()  # [b]
+                if self.gaussian:
+                    state = torch.normal(state, variance.square())
+                return reward, state, done
+
+        else:  # training
+            done = self.done_head(embedding).squeeze(1)
+            if not self.gaussian:
+                state_loss = self.MSE(state, s1)
+                state_loss = state_loss.mean(dim=1)
+                state_var = self.MSE(s1, s1.mean(dim=0, keepdim=True).expand(*s1.shape))
+                # we assume the components of state are of similar magnitude
+                rel_state_loss = state_loss.mean() / state_var.mean()
+                self.logger.log(rel_state_loss=rel_state_loss)
+            else:
+                state_loss = self.NLL(state, s1, sq_variance)
+                if state_loss.dim() > 1:
+                    state_loss = state_loss.mean(dim=1)
+                self.logger.log(state_nll_loss=state_loss, var_mean=sq_variance.mean())
+
+            loss = state_loss
+            if 'r' in self.to_predict:
+                reward_loss = self.MSE(reward, r)
+                loss = loss + reward_loss
+                reward_var = self.MSE(reward, reward.mean(dim=0, keepdim=True).expand(*reward.shape)).mean()
+
+                self.logger.log(reward_loss=reward_loss,
+                                reward_var=reward_var,
+                                reward=r)
+
+            if 'd' in self.to_predict:
+                done_loss = self.BCE(done, d)
+                loss = loss + 10 * done_loss
+                done = done > 0
+                done_true_positive = (done * d).mean()
+                d = d.mean()
+                self.logger.log(done_loss=done_loss, done_true_positive=done_true_positive, done=d, rolling=100)
+
+            return (loss, state.detach())
+
+
 class QCritic(nn.Module):
     """
     Dueling Q, currently only implemented for discrete action space

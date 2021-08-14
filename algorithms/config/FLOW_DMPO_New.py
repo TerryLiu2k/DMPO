@@ -34,7 +34,8 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     p_args.network = MLP
     p_args.activation = torch.nn.ReLU
     p_args.lr = 3e-4
-    p_args.sizes = [obs_dim * (1 + 2 * radius_p) ** 2, 64, 64, 64]
+    p_args.n_embedding = action_dim
+    p_args.sizes = [(obs_dim + action_dim) * (1 + 2 * radius_p) ** 2, 64, 64, 64]
     """
     SAC used 2 layers of width 256 for all experiments,
     MBPO used 4 layers of width 200 or 400
@@ -42,7 +43,6 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     """
     p_args.update_interval = 10
     p_args.update_interval_warmup = 1
-    p_args.n_embedding = (1 + 2 * radius_p) ** 2
     """
      bs=32 interval=4 from rainbow Q
      MBPO retrains fram scratch periodically

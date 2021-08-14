@@ -21,7 +21,7 @@ args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = False
+args.debug = True
 args.test = False # if no training, only test
 args.profiling = False
 
