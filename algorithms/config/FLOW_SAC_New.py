@@ -75,12 +75,10 @@ def getArgs(radius_q, radius_p, radius_pi, env):
     #  (s, a) -> (s1, r, d), the ground truth for supervised training p
     qInWrapper = collect({'p_a1': gather2D(0), 'd': gather2D(0), 'r': gather2D(0), '*': gather2D(radius_q)})
     # s, a, r, s1, a1, p_a1, d
-    piInWrapper = collect({'s': gather2D(radius_pi), 'q': gather2D(0)})
-    qOutWrapper = lambda x: reduce2D(radius_q)(torch.stack(x, dim=1))
+    piInWrapper = collect({'s': gather2D(radius_pi), 'q': reduce2D(radius_q)})
     wrappers = {'p_in': pInWrapper,
                 'q_in': qInWrapper,
-                'pi_in': piInWrapper,
-                'q_out': qOutWrapper}
+                'pi_in': piInWrapper}
 
     def MultiagentSAC(**agent_args):
         agent_args['agent'] = SAC_New

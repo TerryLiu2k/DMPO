@@ -21,9 +21,9 @@ args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
-args.debug = True
+args.debug = False
 args.test = False # if no training, only test
-args.profiling = False
+args.profiling = True
 
 #### algorithm and environment
 #from algorithms.config.CACC_SAC import getArgs
@@ -31,7 +31,7 @@ args.profiling = False
 #from algorithms.config.RealNet_MBPO import getArgs
 #from algorithms.config.ATSC_MBPO import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
-from algorithms.config.FLOW_DMPO_New import getArgs
+from algorithms.config.FLOW_SAC_New import getArgs
 #from algorithms.config.FLOW_TD3 import getArgs
 
 #from algorithms.envs.CACC import CACC_catchup as env_fn

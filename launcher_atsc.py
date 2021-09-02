@@ -14,11 +14,11 @@ This section contains run args, separated from args for the RL algorithm and age
 """
 args = Config()
 #### computation
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 args.n_thread = 1
 args.parallel = False
-args.device = 'cpu'
-args.n_cpu = 1/12 # per agent, used only if parallel = True
+args.device = 'cuda'
+args.n_cpu = 1/4 # per agent, used only if parallel = True
 args.n_gpu = 0
 
 #### general
@@ -30,7 +30,7 @@ args.profiling = False
 #from algorithms.config.CACC_SAC import getArgs
 #from algorithms.config.CACC_MBPO_conservative import getArgs
 #from algorithms.config.RealNet_MBPO import getArgs
-from algorithms.config.ATSC_SAC_New import getArgs
+from algorithms.config.ATSC_MBPO_New import getArgs
 #from algorithms.config.Prisoner_SAC import getArgs
 #from algorithms.config.FLOW_DMPO import getArgs
 
@@ -89,15 +89,15 @@ if args.test:
     algo_args.n_test = 10
     algo_args.n_step = 1
 if args.profiling:
-    algo_args.batch_size=128
+    algo_args.batch_size=32
     if algo_args.agent_args.p_args is None:
         algo_args.n_step = 50
     else:
-        algo_args.n_step = algo_args.batch_size + 10
+        algo_args.n_step = algo_args.batch_size + 64
         algo_args.replay_size = 1000
         algo_args.n_warmup = algo_args.batch_size
     algo_args.n_test = 1
-    algo_args.max_ep_len = 20
+    algo_args.max_ep_len = 50
 if args.seed is None:
     args.seed = int(time.time()*1000)%65536
 
