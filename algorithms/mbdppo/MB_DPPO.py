@@ -21,17 +21,20 @@ from algorithms.models import CategoricalActor, SquashedGaussianActor
 class MultiCollect:
     def __init__(self, adjacency, device="cpu"):
         """
-        Method: 'gather', 'reduce_mean', 'reduce_sum'
+        Method: 'gather', 'reduce_mean', 'reduce_sum'.
         Adjacency: torch Tensor.
+        Everything outward would be in the same device specifed in the initialization parameter.
         """
-        adjacency = adjacency > 0
-        adjacency = adjacency.to(device)
+        self.device = device
         n = adjacency.size()[0]
-        self.degree = adjacency.sum(dim=1)
+        adjacency = adjacency > 0 # Adjacency Matrix, with size n_agent*n_agent. 
+        adjacency = adjacency | torch.eye(n, device=device).bool() # Should contain self-loop, because an agent should utilize its own info.
+        adjacency = adjacency.to(device)
+        self.degree = adjacency.sum(dim=1) # Number of information available to the agent.
         self.indices = []
-        index_full = torch.arange(n)
+        index_full = torch.arange(n, device=device)
         for i in range(n):
-            self.indices.append(torch.masked_select(index_full, adjacency[i]))
+            self.indices.append(torch.masked_select(index_full, adjacency[i])) # Which agents are needed.
 
     def gather(self, tensor):
         """
@@ -61,6 +64,7 @@ class MultiCollect:
             gather: [[batch_size, dim_i] for i in range(n_agent)]
             reduce: [batch_size, n_agent, dim]  # same as input
         """
+        tensor = tensor.to(self.device)
         if len(tensor.shape) == 1:
             tensor = tensor.unsqueeze(0)
         if len(tensor.shape) == 2:
@@ -80,13 +84,15 @@ class MultiCollect:
 
 
 class TrajectoryBuffer:
-    def __init__(self):
+    def __init__(self, device="cpu"):
+        self.device = device
         self.s, self.a, self.r, self.s1, self.d, self.logp = [], [], [], [], [], []
     
-    def store(self, s, a, r, s1, d, logp, device="cpu"):
+    def store(self, s, a, r, s1, d, logp):
         """
         Would be converted into [batch_size, n_agent, dim].
         """
+        device = self.device
         [s, r, s1, logp] = [torch.as_tensor(item, device=device, dtype=torch.float) for item in [s, r, s1, logp]]
         d = torch.as_tensor(d, device=device, dtype=torch.bool)
         a = torch.as_tensor(a, device=device)
@@ -96,6 +102,9 @@ class TrajectoryBuffer:
         if d.dim() <= 1:
             d = d.unsqueeze(0)
         d = d[:, :n]
+        if r.dim() <= 1:
+            r = r.unsqueeze(0)
+        r = r[:, :n]
         [s, a, r, s1, d, logp] = [item.view(b, n, -1) for item in [s, a, r, s1, d, logp]]
         self.s.append(s)
         self.a.append(a)
@@ -201,7 +210,7 @@ class OnPolicyRunner:
                 s1, r, d, _ = env.step(a)
                 episode += [(s.tolist(), a.tolist(), r.tolist())]
                 d = np.array(d)
-                ep_ret += r.mean()
+                ep_ret += r.sum()
                 ep_len += 1
                 self.logger.log(interaction=None)
             if hasattr(env, 'rescaleReward'):
@@ -233,7 +242,7 @@ class OnPolicyRunner:
         if length <= 0:
             length = self.rollout_length
         env = self.env_learn
-        traj = TrajectoryBuffer()
+        traj = TrajectoryBuffer(device=self.device)
         for t in range(length):
             s = env.get_state_()
             s = torch.as_tensor(s, dtype=torch.float, device=self.device)
@@ -248,7 +257,7 @@ class OnPolicyRunner:
             d = np.array(d)
             if self.model_based:
                 self.model_buffer.store(s, a, r, s1, d)
-            traj.store(s, a, r, s1, d, logp, device=self.device)
+            traj.store(s, a, r, s1, d, logp)
             if d.any() or (self.episode_len == self.max_episode_len):
                 self.logger.log(episode_reward=self.episode_reward.sum(), episode_len = self.episode_len, episode=None)
                 _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0
@@ -309,24 +318,26 @@ class DPPOAgent(nn.ModuleList):
     def act(self, s, requires_log=False):
         """
         Discrete only.
+        This method is gradient-free. To get the gradient-enabled probability information, use get_logp().
         """
-        while s.dim() <= 2:
-            s = s.unsqueeze(0)
-        s = s.to(self.device)
-        s = self.collect_pi.gather(s)
-        actions = []
-        log_probs = []
-        for i in range(self.n_agent):
-            probs = self.actors[i](s[i])
-            distrib = Categorical(probs)
-            action = distrib.sample()
-            log_prob = distrib.log_prob(action)
-            actions.append(action.detach())
-            log_probs.append(log_prob.detach())
-        if requires_log:
-            return torch.stack(actions, dim=1), torch.stack(log_probs, dim=1)
-        else:
-            return torch.stack(actions, dim=1)
+        with torch.no_grad():
+            while s.dim() <= 2:
+                s = s.unsqueeze(0)
+            s = s.to(self.device)
+            s = self.collect_pi.gather(s)
+            actions = []
+            log_probs = []
+            for i in range(self.n_agent):
+                probs = self.actors[i](s[i])
+                distrib = Categorical(probs)
+                action = distrib.sample()
+                log_prob = distrib.log_prob(action)
+                actions.append(action.detach())
+                log_probs.append(log_prob.detach())
+            if requires_log:
+                return torch.stack(actions, dim=1), torch.stack(log_probs, dim=1)
+            else:
+                return torch.stack(actions, dim=1)
     
     def get_logp(self, s, a):
         s = s.to(self.device)
@@ -342,6 +353,7 @@ class DPPOAgent(nn.ModuleList):
             clip = self.clip
         n_minibatch = self.n_minibatch
         s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
+        s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
         value_old, returns, advantages, reduced_advantages = self._process_traj(traj)
 
         advantages_old = reduced_advantages if self.use_reduced_v else advantages
@@ -393,7 +405,7 @@ class DPPOAgent(nn.ModuleList):
             loss_v.backward()
             self.optimizer_v.step()
             self.logger.log(v_loss=loss_v, v_update=None)
-        self.logger.log(update=None, reward=r, value=value_old, clip=clip)
+        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old)
         
 
     def save(self, info=None):
@@ -434,6 +446,7 @@ class DPPOAgent(nn.ModuleList):
         with torch.no_grad():
             b, T, n, dim_s = traj['s'].size()
             s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
+            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
             value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
 
             returns = torch.zeros(value.size(), device=self.device)

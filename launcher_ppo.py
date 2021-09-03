@@ -20,7 +20,7 @@ def getRunArgs():
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
     run_args.n_gpu = 0
-    run_args.debug = True
+    run_args.debug = False
     run_args.test = False
     run_args.profiling = False
     run_args.name = 'standard'
@@ -77,8 +77,8 @@ def override(alg_args, run_args, env_fn_train):
     run_args.name = '{}_{}_{}_{}'.format(run_args.name, env_fn_train.__name__, agent_fn.__name__, run_args.seed)
     return alg_args, run_args
 
-env_fn_train, _ = makeFlowGrid()
-env_fn_test, _ = makeFlowGridTest()
+env_fn_train = makeFlowGrid
+env_fn_test = makeFlowGridTest
 env_train = env_fn_train()
 env_test = env_fn_test()
 run_args = getRunArgs()
