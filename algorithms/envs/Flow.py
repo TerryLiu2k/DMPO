@@ -2,6 +2,8 @@ import gym
 from copy import deepcopy
 from gym.envs.registration import register
 
+from algorithms.envs.Vectorized import VectorizedEnv
+
 from ..envs.flow.envs.multiagent import MultiTrafficLightGridPOEnv
 from ..envs.flow.networks import TrafficLightGridNetwork
 from ..envs.flow.core import rewards
@@ -98,14 +100,6 @@ class FlowGridWrapper(MultiTrafficLightGridPOEnv):
         row2 = np.hstack([block2, block1, block0])
         self.distance_mask = np.vstack([row0, row1, row2])
 
-    def init(self):
-        self.n_s_ls, self.n_a_ls, self.coop_gamma, self.distance_mask, self.neighbor_mask \
-            = [], [], -1, np.zeros((9, 9)), np.zeros((9, 9))
-        self.init_neighbor_mask()
-        self.init_distance_mask()
-        self.n_s_ls = [42] * 9
-        self.n_a_ls = [2] * 9   
-
     def compute_reward(self, rl_actions, **kwargs):
         """See class definition."""
         if self.env_params.evaluate:
@@ -118,6 +112,9 @@ class FlowGridWrapper(MultiTrafficLightGridPOEnv):
         for rl_id in rl_actions.keys():
             rews[rl_id] = rew
         return rews
+    
+    def rescaleReward(self, ep_return, ep_len):
+        return ep_return
 
 class FlowGridTestWrapper(FlowGridWrapper):
 
@@ -294,6 +291,11 @@ def makeFlowGrid(evaluate=False, version=0, render=None):
 
 def makeFlowGridTest(version=0, render=None):
     return makeFlowGrid(evaluate=True, version=version, render=render)
+
+def makeVectorizedFlowGridFn(env_args):
+    def makeVectorizedFLowGrid():
+        return VectorizedEnv(makeFlowGrid, env_args)
+    return makeVectorizedFLowGrid
 
 """
 def FlowGrid_Old(render=False):

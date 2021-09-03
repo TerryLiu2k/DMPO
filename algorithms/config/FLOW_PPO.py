@@ -26,8 +26,8 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.n_agent = agent_args.adj.shape[0]
     agent_args.gamma = 0.99
     agent_args.lamda = 0.95
-    agent_args.clip = 0.2
-    agent_args.target_kl = None
+    agent_args.clip = 0.4
+    agent_args.target_kl = 0.01
     agent_args.v_coeff = 1.0
     agent_args.entropy_coeff = 0.0
     agent_args.lr = 5e-4

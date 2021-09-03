@@ -5,13 +5,20 @@ import ray
 import time
 import warnings
 from algorithms.utils import Config, LogClient, LogServer
-from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest
+from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedFlowGridFn
 from algorithms.config.FLOW_PPO import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
 from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
 import torch
 
 warnings.filterwarnings('ignore')
+
+def getEnvArgs():
+    env_args = Config()
+    env_args.n_env = 2
+    env_args.n_cpu = 1 # per environment
+    env_args.n_gpu = 0
+    return env_args
 
 def getRunArgs():
     run_args = Config()
@@ -20,7 +27,7 @@ def getRunArgs():
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
     run_args.n_gpu = 0
-    run_args.debug = False
+    run_args.debug = True
     run_args.test = False
     run_args.profiling = False
     run_args.name = 'standard'
@@ -77,7 +84,8 @@ def override(alg_args, run_args, env_fn_train):
     run_args.name = '{}_{}_{}_{}'.format(run_args.name, env_fn_train.__name__, agent_fn.__name__, run_args.seed)
     return alg_args, run_args
 
-env_fn_train = makeFlowGrid
+env_args = getEnvArgs()
+env_fn_train = makeVectorizedFlowGridFn(env_args)
 env_fn_test = makeFlowGridTest
 env_train = env_fn_train()
 env_test = env_fn_test()
