@@ -288,15 +288,15 @@ class LogClient(object):
             server = server.server
         self.server = server
         self.prefix = prefix
-        self.log_period = ray.get(server.getArgs.remote()).log_period
+        self.log_period = server.getArgs().log_period
         self.last_log = 0
-        setSeed(ray.get(server.getArgs.remote()).seed)
+        setSeed(server.getArgs().seed)
         
     def child(self, prefix=""):
         return LogClient(self, prefix)
         
     def flush(self):
-        ray.get(self.server.flush.remote(self))
+        self.server.flush(self)
         self.last_log = time.time()
         
     def log(self, raw_data=None, **kwargs):
@@ -339,12 +339,11 @@ class LogClient(object):
     def save(self, model, info=None):
         state_dict = model.state_dict()
         state_dict = {k: state_dict[k].cpu() for k in state_dict}
-        ray.get(self.server.save.remote({self.prefix: state_dict}, info))
+        self.server.save({self.prefix: state_dict}, info)
         
     def getArgs(self):
-        return ray.get(self.server.getArgs.remote())
+        return self.server.getArgs()
 
-@ray.remote
 class LogServer(object):
     """
     We do not assume the logging backend (e.g. tb, wandb) supports multiprocess logging,
@@ -411,7 +410,7 @@ class LogServer(object):
         # because wandb assumes step must increase per commit
         self.last_log = time.time()
         
-    def save(self, state_dict=None, info=None, flush=False):
+    def save(self, state_dict=None, info=None, flush=True):
         if not state_dict is None:
             self.state_dict.update(state_dict)
         if flush and time.time() - self.last_save >= self.save_period:

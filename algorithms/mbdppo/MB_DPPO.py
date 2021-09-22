@@ -1,22 +1,20 @@
-import itertools
-from sys import setdlopenflags
-from numpy.core.numeric import zeros_like
+import time
+from algorithms.utils import collect
+from algorithms.models import GraphConvolutionalModel, MLP
 #from torch.autograd.grad_mode import F
-from torch.utils.data import dataloader
 from tqdm.std import trange
 from algorithms.algorithm import ReplayBuffer
 from ray.state import actors
-from algorithms.utils import collect
+from gym.spaces.box import Box
 from gym.spaces.discrete import Discrete
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
-import torch.utils.data as Data
-from torch.optim import Adam, optimizer
+from torch.optim import Adam
 import numpy as np
 import pickle
 
-from algorithms.models import CategoricalActor, SquashedGaussianActor
+from algorithms.models import CategoricalActor, EnsembledModel, SquashedGaussianActor, ParameterizedModel_MBPPO
 
 class MultiCollect:
     def __init__(self, adjacency, device="cpu"):
@@ -82,6 +80,32 @@ class MultiCollect:
             result = torch.stack(result, dim=1)
         return result
 
+class Trajectory:
+    def __init__(self, **kwargs):
+        self.names = ["s", "a", "r", "s1", "d", "logp"]
+        self.dict = {name: kwargs[name] for name in self.names}
+        self.length = self.dict["s"].size()[0]
+    
+    def getFraction(self, length, start=None):
+        if self.length < length:
+            length = self.length
+        start_max = self.length - length
+        if start is None:
+            start = torch.randint(low=0, high=start_max+1, size=(1,)).item()
+        if start > start_max:
+            start = start_max
+        if start < 0:
+            start = 0
+        new_dict = {name: self.dict[name][start:start+length] for name in self.names}
+        return Trajectory(**new_dict)
+    
+    def __getitem__(self, key):
+        assert key in self.names
+        return self.dict[key]
+    
+    @classmethod
+    def names(cls):
+        return ["s", "a", "r", "s1", "d", "logp"]
 
 class TrajectoryBuffer:
     def __init__(self, device="cpu"):
@@ -115,16 +139,48 @@ class TrajectoryBuffer:
     
     def retrieve(self):
         """
-        Returns a dictionary with s, a, r, s1, d, logp.
-        Data are of size [n_trajectory, T, n_agent, dim]
+        Returns trajectories with s, a, r, s1, d, logp.
+        Data are of size [T, n_agent, dim]
         """
         names = ["s", "a", "r", "s1", "d", "logp"]
+        trajs = []
         traj_all = {}
+        if self.s == []:
+            return []
         for name in names:
             traj_all[name] = torch.stack(self.__getattribute__(name), dim=1)
-        return traj_all
-        
+        n = traj_all['s'].size()[0]
+        for i in range(n):
+            traj_dict = {}
+            for name in names:
+                traj_dict[name] = traj_all[name][i]
+            trajs.append(Trajectory(**traj_dict))
+        return trajs
 
+class ModelBuffer:
+    def __init__(self, max_traj_num):
+        self.max_traj_num = max_traj_num
+        self.trajectories = []
+        self.ptr = -1
+        self.count = 0
+    
+    def storeTraj(self, traj):
+        if self.ptr < self.max_traj_num - 1:
+            self.trajectories.append(traj)
+            self.ptr = (self.ptr + 1) % self.max_traj_num
+            self.count = min(self.count + 1, self.max_traj_num)
+        else:
+            self.trajectories[self.ptr] = traj
+            self.ptr = (self.ptr + 1) % self.max_traj_num
+            self.count = min(self.count + 1, self.max_traj_num)
+    
+    def storeTrajs(self, trajs):
+        for traj in trajs:
+            self.storeTraj(traj)
+    
+    def sampleTrajs(self, n_traj):
+        traj_idxs = np.random.choice(range(self.count), size=(n_traj,), replace=True)
+        return [self.trajectories[i] for i in traj_idxs]
 
 class OnPolicyRunner:
     def __init__(self, logger, run_args, alg_args, agent, env_learn, env_test, **kwargs):
@@ -137,6 +193,7 @@ class OnPolicyRunner:
 
         # algorithm arguments
         self.n_iter = alg_args.n_iter
+        self.n_inner_iter = alg_args.n_inner_iter
         self.n_warmup = alg_args.n_warmup
         self.n_model_update = alg_args.n_model_update
         self.n_model_update_warmup = alg_args.n_model_update_warmup
@@ -161,37 +218,45 @@ class OnPolicyRunner:
         self.model_based = alg_args.model_based
         self.model_batch_size = alg_args.model_batch_size
         if self.model_based:
-            self.model_buffer = ReplayBuffer(max_size=alg_args.model_buffer_size, action_dtype=action_dtype)
+            self.n_traj = alg_args.n_traj
+            self.model_traj_length = alg_args.model_traj_length
+            self.model_error_thres = alg_args.model_error_thres
+            self.model_buffer = ModelBuffer(alg_args.model_buffer_size)
+            self.model_update_length = alg_args.model_update_length
         self.s, self.episode_len, self.episode_reward = self.env_learn.reset(), 0, 0
 
     def run(self):
-
-        if self.n_warmup > 0 and self.model_based:
-            self.rollout_env()
-            for _ in range(self.n_model_update_warmup):
-                batch = self.model_buffer.sampleBatch(self.model_batch_size)
-                self.agent.updateModel(**batch)
-            
+        if self.model_based:
+            for _ in trange(self.n_warmup):
+                trajs = self.rollout_env()
+                self.model_buffer.storeTrajs(trajs)
+            self.updateModel(self.n_model_update_warmup)
         for iter in trange(self.n_iter):
             if iter % self.test_interval == 0:
-                self.test()
+                mean_return = self.test()
+                self.agent.save(info = mean_return)
+            trajs = self.rollout_env()
+            self.model_buffer.storeTrajs(trajs)
             if self.model_based:
-                for _ in range(self.n_model_update):
-                    batch = self.model_buffer.sampleBatch(self.model_batch_size)
-                    self.agent.updateModel(**batch)
-            traj = self.rollout_env()
-            if self.model_based:
-                traj = self.rollout_model(traj)
-            if self.clip_scheme is not None:
-                self.agent.updateAgent(traj, self.clip_scheme(iter))
-            else:
-                self.agent.updateAgent(traj)
-            del traj
+                self.updateModel()
+            agentInfo = []
+            for inner in range(self.n_inner_iter):
+                if self.model_based:
+                    trajs = self.rollout_model(trajs)
+                if self.clip_scheme is not None:
+                    info = self.agent.updateAgent(trajs, self.clip_scheme(iter))
+                else:
+                    info = self.agent.updateAgent(trajs)
+                agentInfo.append(info)
+                if self.agent.checkConverged(agentInfo):
+                    break
+            self.logger.log(inner_iter = inner + 1) # TODO: should let V func fit more.
 
     def test(self):
         """
         The environment should return sth like [n_agent, dim] or [batch_size, n_agent, dim] in either numpy or torch.
         """
+        time_t = time.time()
         length = self.test_length
         returns = []
         scaled = []
@@ -233,15 +298,18 @@ class OnPolicyRunner:
                 for step in episode:
                     f.write(f"{step[0]}, {step[1]}, {step[2]}\n")
                 f.write("\n")
+        self.logger.log(test_time=time.time()-time_t)
         return returns.mean()
 
     def rollout_env(self, length = 0):
         """
         The environment should return sth like [n_agent, dim] or [batch_size, n_agent, dim] in either numpy or torch.
         """
+        time_t = time.time()
         if length <= 0:
             length = self.rollout_length
         env = self.env_learn
+        trajs = []
         traj = TrajectoryBuffer(device=self.device)
         for t in range(length):
             s = env.get_state_()
@@ -249,23 +317,60 @@ class OnPolicyRunner:
             a, logp = self.agent.act(s, requires_log=True) # a and logp are Tensors
             a = a.squeeze(0).detach().cpu().numpy()
             s1, r, d, _ = env.step(a)
-            self.episode_reward += r
+            traj.store(s, a, r, s1, d, logp)
+            episode_r = r
+            if hasattr(env, '_comparable_reward'):
+                episode_r = env._comparable_reward()
+            if episode_r.ndim > 1:
+                episode_r = episode_r.mean(axis=0)
+            self.episode_reward += episode_r
             self.episode_len += 1
             self.logger.log(interaction=None)
             if self.episode_len == self.max_episode_len:
                 d = np.zeros(d.shape, dtype=np.float32)
             d = np.array(d)
-            if self.model_based:
-                self.model_buffer.store(s, a, r, s1, d)
-            traj.store(s, a, r, s1, d, logp)
             if d.any() or (self.episode_len == self.max_episode_len):
                 self.logger.log(episode_reward=self.episode_reward.sum(), episode_len = self.episode_len, episode=None)
                 _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0
-        return traj.retrieve()
+                trajs += traj.retrieve()
+                traj = TrajectoryBuffer(device=self.device)
+        trajs += traj.retrieve()
+        self.logger.log(env_rollout_time=time.time()-time_t)
+        return trajs
     
-    def rollout_model(self, traj):
-        pass
+    def rollout_model(self, trajs):
+        time_t = time.time()
+        n_traj = self.n_traj
+        length = self.model_traj_length
+        s_total = len(trajs)
+        s = [traj['s'] for traj in trajs]
+        idxs = torch.randint(low=0, high=s_total, size=(n_traj,), device=self.device)
+        s = [s[idx.item()] for idx in idxs]
+        s = torch.stack(s, dim=0)
+        b, T, n, depth = s.shape
+        s = s.view(-1, n, depth)
 
+        trajs = TrajectoryBuffer(device=self.device)
+        for _ in range(length):
+            a, logp = self.agent.act(s, requires_log=True)
+            r, s1, d, s = self.agent.model_step(s, a)
+            trajs.store(s, a, r, s1, d, logp)
+            s = s1
+        trajs = trajs.retrieve()
+        rtn = [traj.getFraction(length=length) for traj in trajs]
+        self.logger.log(model_rollout_time=time.time()-time_t)
+        return rtn
+    
+    def updateModel(self, n = 0):
+        if n <= 0:
+            n = self.n_model_update
+        for i_model_update in range(self.n_model_update):
+            trajs = self.model_buffer.sampleTrajs(self.model_batch_size)
+            trajs = [traj.getFraction(length=self.model_update_length) for traj in trajs]
+            rel_error = self.agent.updateModel(trajs, length=self.model_update_length)
+            if rel_error < self.model_error_thres:
+                break
+        self.logger.log(model_update = i_model_update+1)
 
 
 class DPPOAgent(nn.ModuleList):
@@ -282,17 +387,19 @@ class DPPOAgent(nn.ModuleList):
         self.clip = agent_args.clip
         self.target_kl = agent_args.target_kl
         self.v_coeff = agent_args.v_coeff
+        self.v_thres = agent_args.v_thres
         self.entropy_coeff = agent_args.entropy_coeff
         self.lr = agent_args.lr
+        self.lr_v = agent_args.lr_v
         self.n_update_v = agent_args.n_update_v
         self.n_update_pi = agent_args.n_update_pi
         self.n_minibatch = agent_args.n_minibatch
         self.use_reduced_v = agent_args.use_reduced_v
+        self.use_rtg = agent_args.use_rtg
 
         self.advantage_norm = agent_args.advantage_norm
 
-        self.observation_space = agent_args.observation_space
-        self.observation_dim = self.observation_space.shape[0]
+        self.observation_dim = agent_args.observation_dim
         self.action_space = agent_args.action_space
         self.discrete = isinstance(agent_args.action_space, Discrete)
         if self.discrete:
@@ -303,6 +410,9 @@ class DPPOAgent(nn.ModuleList):
             self.action_dim = 1
             for j in self.action_shape:
                 self.action_dim *= j
+            self.action_low = self.action_space.low.item()
+            self.action_high = self.action_space.high.item()
+            self.squeeze = agent_args.squeeze
         
         self.adj = torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float)
         self.radius_v = agent_args.radius_v
@@ -312,13 +422,14 @@ class DPPOAgent(nn.ModuleList):
         self.collect_pi, self.actors = self._init_actors()
         self.collect_v, self.vs = self._init_vs()
 
-        self.optimizer_v = Adam(self.vs.parameters(), lr=self.lr)
+        self.optimizer_v = Adam(self.vs.parameters(), lr=self.lr_v)
         self.optimizer_pi = Adam(self.actors.parameters(), lr=self.lr)
 
     def act(self, s, requires_log=False):
         """
         Discrete only.
         This method is gradient-free. To get the gradient-enabled probability information, use get_logp().
+        When categorical, action is squeezed.
         """
         with torch.no_grad():
             while s.dim() <= 2:
@@ -327,28 +438,392 @@ class DPPOAgent(nn.ModuleList):
             s = self.collect_pi.gather(s)
             actions = []
             log_probs = []
-            for i in range(self.n_agent):
-                probs = self.actors[i](s[i])
-                distrib = Categorical(probs)
-                action = distrib.sample()
-                log_prob = distrib.log_prob(action)
-                actions.append(action.detach())
-                log_probs.append(log_prob.detach())
-            if requires_log:
-                return torch.stack(actions, dim=1), torch.stack(log_probs, dim=1)
+
+            if self.discrete:
+                for i in range(self.n_agent):
+                    probs = self.actors[i](s[i])
+                    distrib = Categorical(probs)
+                    action = distrib.sample()
+                    log_prob = distrib.log_prob(action)
+                    actions.append(action.detach())
+                    log_probs.append(log_prob.detach())
+                if requires_log:
+                    return torch.stack(actions, dim=1), torch.stack(log_probs, dim=1)
+                else:
+                    return torch.stack(actions, dim=1)
             else:
-                return torch.stack(actions, dim=1)
+                for i in range(self.n_agent):
+                    action, log_prob = self.actors[i](s[i])
+                    actions.append(action)
+                    log_probs.append(log_prob)
+                if requires_log:
+                    return torch.stack(actions, dim=1), torch.stack(log_probs, dim=1)
+                else:
+                    return torch.stack(actions, dim=1)
     
     def get_logp(self, s, a):
         s = s.to(self.device)
         s = self.collect_pi.gather(s)
         log_prob = []
         for i in range(self.n_agent):
-            probs = self.actors[i](s[i])
-            log_prob.append(torch.log(torch.gather(probs, dim=-1, index=torch.select(a, dim=1, index=i).long())))
+            if self.discrete:
+                probs = self.actors[i](s[i])
+                log_prob.append(torch.log(torch.gather(probs, dim=-1, index=torch.select(a, dim=1, index=i).long())))
+            else:
+                log_prob.append(self.actors[i](s[i], a.select(dim=1, index=i)))
         return torch.stack(log_prob, dim=1)
 
-    def updateAgent(self, traj, clip=None):        
+    def updateAgent(self, trajs, clip=None):
+        time_t = time.time()
+        if clip is None:
+            clip = self.clip
+        n_minibatch = self.n_minibatch
+
+        names = Trajectory.names()
+        traj_all = {name:[] for name in names}
+        for traj in trajs:
+            for name in names:
+                traj_all[name].append(traj[name])
+        traj = {name:torch.stack(value, dim=0) for name, value in traj_all.items()}
+
+        s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
+        s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+        value_old, returns, advantages, reduced_advantages = self._process_traj(**traj)
+
+        advantages_old = reduced_advantages if self.use_reduced_v else advantages
+
+        b, T, n, d_s = s.size()
+        d_a = a.size()[-1]
+        s = s.view(-1, n, d_s)
+        a = a.view(-1, n, d_a)
+        logp = logp.view(-1, n, 1)
+        advantages_old = advantages_old.view(-1, n, 1)
+        returns = returns.view(-1, n, 1)
+        value_old = value_old.view(-1, n, 1)
+
+        batch_total = logp.size()[0]
+        batch_size = int(batch_total/n_minibatch)
+        kl = 0
+        i_pi = 0
+        for i_pi in range(self.n_update_pi):
+            batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
+            if n_minibatch > 1:
+                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
+                [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
+            batch_logp_new = self.get_logp(batch_state, batch_action)
+            logp_diff = batch_logp_new - batch_logp
+            kl = logp_diff.mean()
+            ratio = torch.exp(batch_logp_new - batch_logp)
+            surr1 = ratio * batch_advantages_old
+            surr2 = ratio.clamp(1 - clip, 1 + clip) * batch_advantages_old
+            loss_surr = torch.min(surr1, surr2).mean()
+            loss_entropy = - torch.mean(batch_logp_new)
+            loss_pi = - loss_surr - self.entropy_coeff * loss_entropy
+            self.optimizer_pi.zero_grad()
+            loss_pi.backward()
+            self.optimizer_pi.step()
+            self.logger.log(surr_loss = loss_surr, entropy = loss_entropy, kl_divergence = kl, pi_update=None)
+            if self.target_kl is not None and kl.abs() > 1.5 * self.target_kl:
+                break
+        self.logger.log(pi_update_step=i_pi)
+
+        for i_v in range(self.n_update_v):
+            batch_returns = returns
+            batch_state = s
+            if n_minibatch > 1:
+                idxs = np.random.randint(0, len(batch_total), size=batch_size)
+                [batch_returns, batch_state] = [item[idxs] for item in [batch_returns, batch_state]]
+            batch_v_new = self._evalV(batch_state)
+            loss_v = ((batch_v_new - batch_returns) ** 2).mean()
+            self.optimizer_v.zero_grad()
+            loss_v.backward()
+            self.optimizer_v.step()
+            var_v = ((batch_returns - batch_returns.mean()) ** 2).mean()
+            rel_v_loss = loss_v / (var_v + 1e-8)
+            self.logger.log(v_loss=loss_v, v_update=None, v_var=var_v, rel_v_loss=rel_v_loss)
+            if rel_v_loss < self.v_thres:
+                break
+        self.logger.log(v_update_step=i_v)
+        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
+        self.logger.log(agent_update_time=time.time()-time_t)
+        return [r.mean().item(), loss_entropy.item()]
+    
+    def checkConverged(self, ls_info):
+        rs = [info[0] for info in ls_info]
+        r_converged = len(rs) > 8 and np.mean(rs[-3:]) < np.mean(rs[:-5])
+        entropies = [info[1] for info in ls_info]
+        entropy_converged = len(entropies) > 8 and np.abs(np.mean(entropies[-3:]) / np.mean(entropies[:-5]) - 1) < 1e-2
+        return r_converged and entropy_converged
+
+    def save(self, info=None):
+        self.logger.save(self, info=info)
+
+    def load(self, state_dict):
+        self.load_state_dict(state_dict[self.logger.prefix])
+
+    def _evalV(self, s):
+        s = s.to(self.device)
+        s = self.collect_v.gather(s)
+        values = []
+        for i in range(self.n_agent):
+            values.append(self.vs[i](s[i]))
+        return torch.stack(values, dim=1)
+
+    def _init_actors(self):
+        collect_pi = MultiCollect(torch.matrix_power(self.adj, self.radius_pi), device=self.device)
+        actors = nn.ModuleList()
+        for i in range(self.n_agent):
+            self.pi_args.sizes[0] = collect_pi.degree[i] * self.observation_dim
+            if self.discrete:
+                actors.append(CategoricalActor(**self.pi_args._toDict()))
+            else:
+                actors.append(SquashedGaussianActor(action_dim=self.action_dim, low=self.action_low, high=self.action_high, squeeze=self.squeeze, **self.pi_args._toDict()))
+        return collect_pi, actors
+    
+    def _init_vs(self):
+        collect_v = MultiCollect(torch.matrix_power(self.adj, self.radius_v), device=self.device)
+        vs = nn.ModuleList()
+        for i in range(self.n_agent):
+            self.v_args.sizes[0] = collect_v.degree[i] * self.observation_dim
+            v_fn = self.v_args.network
+            vs.append(v_fn(**self.v_args._toDict()))
+        return collect_v, vs
+    
+    def _process_traj(self, s, a, r, s1, d, logp):
+        with torch.no_grad():
+            b, T, n, dim_s = s.shape
+            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+            value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
+
+            returns = torch.zeros(value.size(), device=self.device)
+            deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
+            prev_value = self._evalV(s1.select(1, T - 1))
+            if self.use_rtg:
+                prev_return = prev_value
+            else:
+                prev_return = torch.zeros_like(prev_value)
+            prev_advantage = torch.zeros_like(prev_return)
+            d_mask = d.float()
+            for t in reversed(range(T)):
+                returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_return
+                deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
+                advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
+
+                prev_return = returns.select(1, t)
+                prev_value = value.select(1, t)
+                prev_advantage = advantages.select(1, t)
+            reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
+            if self.advantage_norm and reduced_advantages.size()[1] > 1:
+                reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
+                advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
+        return value, returns, advantages, reduced_advantages
+        
+'''
+class MB_DPPOAgent(DPPOAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args)
+        self.lr_p = agent_args.lr_p
+        self.p_args = agent_args.p_args
+        self.ps = GraphConvolutionalModel(self.logger, self.adj, self.observation_dim, self.action_dim, self.n_agent, self.p_args).to(self.device)
+        self.optimizer_p = Adam(self.ps.parameters(), lr=self.lr)
+
+    def updateModel(self, s, a, r, s1, d):
+        """
+        Input dim: 
+        s: [batch_size, n_agent, state_dim]
+        a: [batch_size, n_agent]
+        """
+        time_t = time.time()
+        s, a, r, s1, d = [torch.as_tensor(item, device=self.device) for item in [s, a, r, s1, d]]
+        loss, _ = self.ps.train(s, a, r, s1, d)
+        self.optimizer_p.zero_grad()
+        loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(parameters=self.ps.parameters(), max_norm=5, norm_type=2)
+        self.optimizer_p.step()
+        self.logger.log(p_loss_total=loss.sum(), p_update=None)
+        self.logger.log(model_update_time=time.time()-time_t)
+    
+    def model_step(self, s, a):
+        """
+        Input dim: 
+        s: [batch_size, n_agent, state_dim]
+        a: [batch_size, n_agent]
+        """
+        with torch.no_grad():
+            while s.dim() <= 2:
+                s = s.unsqueeze(0)
+            while a.dim() <= 1:
+                a = a.unsqueeze(0)
+            s = s.to(self.device)
+            a = a.to(self.device)
+            rs, s1s, ds = self.ps.predict(s, a)
+            return rs.detach(), s1s.detach(), ds.detach(), s.detach()'''
+
+class ModelBasedAgent(nn.ModuleList):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+        self.logger = logger
+        self.device = device
+        self.lr_p = agent_args.lr_p
+        self.p_args = agent_args.p_args
+        self.ps = GraphConvolutionalModel(self.logger, self.adj, self.observation_dim, self.action_dim, self.n_agent, self.p_args).to(self.device)
+        self.optimizer_p = Adam(self.ps.parameters(), lr=self.lr)
+
+    def updateModel(self, trajs, length=1):
+        """
+        Input dim: 
+        s: [[T, n_agent, state_dim]]
+        a: [[T, n_agent, action_dim]]
+        """
+        time_t = time.time()
+        loss_total = 0.
+        rel_state_errors = []
+        ss, actions, rs, s1s, ds = [], [], [], [], []
+        for traj in trajs:
+            s, a, r, s1, d = traj["s"], traj["a"], traj["r"], traj["s1"], traj["d"]
+            s, a, r, s1, d = [torch.as_tensor(item, device=self.device) for item in [s, a, r, s1, d]]
+            a = a.squeeze(-1)
+            r = r.squeeze(-1)
+            d = d.squeeze(-1)
+            ss.append(s)
+            actions.append(a)
+            rs.append(r)
+            s1s.append(s1)
+            ds.append(d)
+        ss, actions, rs, s1s, ds = [torch.stack(item, dim=0) for item in [ss, actions, rs, s1s, ds]]
+        loss, rel_state_error = self.ps.train(ss, actions, rs, s1s, ds, length) # [n_traj, T, n_agent, dim]
+        loss_total += loss
+        rel_state_errors.append(rel_state_error.item())
+        self.optimizer_p.zero_grad()
+        loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(parameters=self.ps.parameters(), max_norm=5, norm_type=2)
+        self.optimizer_p.step()
+        self.logger.log(p_loss_total=loss.sum(), p_update=None)
+        self.logger.log(model_update_time=time.time()-time_t)
+        return rel_state_error.item()
+    
+    def model_step(self, s, a):
+        """
+        Input dim: 
+        s: [batch_size, n_agent, state_dim]
+        a: [batch_size, n_agent]
+        """
+        with torch.no_grad():
+            while s.dim() <= 2:
+                s = s.unsqueeze(0)
+            while a.dim() <= 1:
+                a = a.unsqueeze(0)
+            s = s.to(self.device)
+            a = a.to(self.device)
+            rs, s1s, ds = self.ps.predict(s, a)
+            return rs.detach(), s1s.detach(), ds.detach(), s.detach()
+
+class HiddenAgent(ModelBasedAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+        self.hidden_state_dim = agent_args.hidden_state_dim
+        self.embedding_sizes = agent_args.embedding_sizes
+        self.embedding_layers = self._init_embedding_layers()
+        self.optimizer_p.add_param_group({'params': self.embedding_layers.parameters()})
+    
+    def act(self, s, requires_log=False):
+        s = s.detach()
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s).detach()
+        return super().act(s, requires_log)
+    
+    def get_logp(self, s, a):
+        s = s.detach()
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s).detach()
+        return super().get_logp(s, a)
+    
+    def updateModel(self, s, a, r, s1, d):
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s)
+        if s1.size()[-1] != self.hidden_state_dim:
+            s1 = self._state_embedding(s1)
+        return super().updateModel(s, a, r, s1, d)
+    
+    def model_step(self, s, a):
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s)
+        return super().model_step(s, a)
+
+    def _init_embedding_layers(self):
+        embedding_layers = nn.ModuleList()
+        for _ in range(self.n_agent):
+            embedding_layers.append(MLP(self.embedding_sizes, activation=nn.ReLU))
+        return embedding_layers.to(self.device)
+    
+    def _state_embedding(self, s):
+        embeddings = []
+        for i in range(self.n_agent):
+            embeddings.append(self.embedding_layers[i](s.select(dim=-2, index=i).to(self.device)))
+        embeddings = torch.stack(embeddings, dim=-2)
+        return embeddings
+
+class MB_DPPOAgent(ModelBasedAgent, DPPOAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+
+class MB_DPPOAgent_Hidden(HiddenAgent, MB_DPPOAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+
+"""
+class MB_DPPOAgent_Hidden(MB_DPPOAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+        self.hidden_state_dim = agent_args.hidden_state_dim
+        self.embedding_sizes = agent_args.embedding_sizes
+        self.embedding_layers = self._init_embedding_layers()
+        self.optimizer_p.add_param_group({'params': self.embedding_layers.parameters()})
+    
+    def act(self, s, requires_log=False):
+        s = s.detach()
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s).detach()
+        return super().act(s, requires_log)
+    
+    def get_logp(self, s, a):
+        s = s.detach()
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s).detach()
+        return super().get_logp(s, a)
+    
+    def updateModel(self, s, a, r, s1, d):
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s)
+        if s1.size()[-1] != self.hidden_state_dim:
+            s1 = self._state_embedding(s1)
+        return super().updateModel(s, a, r, s1, d)
+    
+    def model_step(self, s, a):
+        if s.size()[-1] != self.hidden_state_dim:
+            s = self._state_embedding(s)
+        return super().model_step(s, a)
+
+    def _init_embedding_layers(self):
+        embedding_layers = nn.ModuleList()
+        for _ in range(self.n_agent):
+            embedding_layers.append(MLP(self.embedding_sizes, activation=nn.ReLU))
+        return embedding_layers.to(self.device)
+    
+    def _state_embedding(self, s):
+        embeddings = []
+        for i in range(self.n_agent):
+            embeddings.append(self.embedding_layers[i](s.select(dim=-2, index=i).to(self.device)))
+        embeddings = torch.stack(embeddings, dim=-2)
+        return embeddings"""
+
+class DA2CAgent(DPPOAgent):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__(logger, device, agent_args, **kwargs)
+        self.use_rtg = False
+
+    def updateAgent(self, traj, clip=None):
+        time_t = time.time()
         if clip is None:
             clip = self.clip
         n_minibatch = self.n_minibatch
@@ -374,22 +849,19 @@ class DPPOAgent(nn.ModuleList):
         for i_pi in range(self.n_update_pi):
             batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
             if n_minibatch > 1:
-                idxs = np.random.randint(0, len(batch_total), size=batch_size)
+                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
                 [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
             batch_logp_new = self.get_logp(batch_state, batch_action)
             logp_diff = batch_logp_new - batch_logp
             kl = logp_diff.mean()
-            ratio = torch.exp(batch_logp_new - batch_logp)
-            surr1 = ratio * batch_advantages_old
-            surr2 = ratio.clamp(1 - clip, 1 + clip) * batch_advantages_old
-            loss_surr = torch.min(surr1, surr2).mean()
+            loss_surr = batch_logp_new * batch_advantages_old
             loss_entropy = - torch.mean(torch.exp(batch_logp_new) * batch_logp_new)
             loss_pi = - loss_surr - self.entropy_coeff * loss_entropy
             self.optimizer_pi.zero_grad()
             loss_pi.backward()
             self.optimizer_pi.step()
             self.logger.log(surr_loss = loss_surr, entropy = loss_entropy, kl_divergence = kl, pi_update=None)
-            if self.target_kl is not None and kl > 1.5 * self.target_kl:
+            if self.target_kl is not None and kl.abs() > 1.5 * self.target_kl:
                 break
         self.logger.log(pi_update_step=i_pi)
 
@@ -405,89 +877,5 @@ class DPPOAgent(nn.ModuleList):
             loss_v.backward()
             self.optimizer_v.step()
             self.logger.log(v_loss=loss_v, v_update=None)
-        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old)
-        
-
-    def save(self, info=None):
-        self.logger.save(self, info)
-
-    def load(self, state_dict):
-        self.load_state_dict(state_dict[self.logger.prefix])
-
-    def _evalV(self, s):
-        s = s.to(self.device)
-        s = self.collect_v.gather(s)
-        values = []
-        for i in range(self.n_agent):
-            values.append(self.vs[i](s[i]))
-        return torch.stack(values, dim=1)
-
-    def _init_actors(self):
-        collect_pi = MultiCollect(torch.matrix_power(self.adj, self.radius_pi), device=self.device)
-        actors = nn.ModuleList()
-        for i in range(self.n_agent):
-            self.pi_args.sizes[0] = collect_pi.degree[i] * self.observation_dim
-            if self.discrete:
-                actors.append(CategoricalActor(**self.pi_args._toDict()))
-            else:
-                actors.append(SquashedGaussianActor(**self.pi_args._toDict()))
-        return collect_pi, actors
-    
-    def _init_vs(self):
-        collect_v = MultiCollect(torch.matrix_power(self.adj, self.radius_v), device=self.device)
-        vs = nn.ModuleList()
-        for i in range(self.n_agent):
-            self.v_args.sizes[0] = collect_v.degree[i] * self.observation_dim
-            v_fn = self.v_args.network
-            vs.append(v_fn(**self.v_args._toDict()))
-        return collect_v, vs
-    
-    def _process_traj(self, traj):
-        with torch.no_grad():
-            b, T, n, dim_s = traj['s'].size()
-            s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
-            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
-            value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
-
-            returns = torch.zeros(value.size(), device=self.device)
-            deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
-            prev_value = self._evalV(s1.select(1, T - 1))
-            prev_return = torch.zeros_like(prev_value)
-            prev_advantage = torch.zeros_like(prev_return)
-            d_mask = d.float()
-            for t in reversed(range(T)):
-                returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_return
-                deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
-                advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
-
-                prev_return = returns.select(1, t)
-                prev_value = value.select(1, t)
-                prev_advantage = advantages.select(1, t)
-            reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
-            if self.advantage_norm:
-                reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
-                advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
-        return value, returns, advantages, reduced_advantages
-        
-
-class MB_DPPOAgent(DPPOAgent):
-    def __init__(self, logger, device, agent_args, **kwargs):
-        super().__init__(logger, device, agent_args)
-        self.radius_p = agent_args.radius_p
-        self.p_args = agent_args.p_args
-        self.collect_p, self.ps = self._init_ps()
-    
-    def updateAgent(self):
-        pass
-
-    def updateModel(self, **kwargs):
-        pass
-
-    def _rollout(self):
-        pass
-
-    def _init_ps(self):
-        pass
-    
-    def _rollout_model(self, traj, length = 0, n_instance = 0):
-        pass
+        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
+        self.logger.log(agent_update_time=time.time()-time_t)

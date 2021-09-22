@@ -43,7 +43,7 @@ class VectorizedEnv:
             setattr(self, name, result)
     
     def get_state_(self):
-        data = [{}] * self.n_env
+        data = [{} for _ in range(self.n_env)]
         results = self.eval(self.envs, 'get_state_', data)
         if isinstance(results[0], np.ndarray):
             results = np.stack(results, axis=0)
@@ -73,6 +73,6 @@ class VectorizedEnv:
         return s1s, rs, ds, infos
     
     def reset(self):
-        data = [{}] * self.n_env
+        data = [{} for _ in range(self.n_env)]
         results = self.eval(self.envs, 'reset', data)
         return self.get_state_()

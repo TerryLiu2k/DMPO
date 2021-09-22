@@ -1,25 +1,9 @@
 from gym.spaces.discrete import Discrete
-from numpy import pi
 import torch.nn
 from algorithms.models import MLP
 from algorithms.utils import Config
-from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent
 
 def getArgs(radius_p, radius_v, radius_pi, env):
-
-    alg_args = Config()
-    alg_args.n_iter = 25000
-    alg_args.n_warmup = 6
-    alg_args.n_model_update = 5
-    alg_args.n_model_update_warmup = 10
-    alg_args.n_test = 5
-    alg_args.test_interval = 5
-    alg_args.rollout_length = 400
-    alg_args.test_length = 400
-    alg_args.max_episode_len = 400
-    alg_args.model_based = False
-    alg_args.model_batch_size = 128
-    alg_args.model_buffer_size = 0
 
     agent_args = Config()
     agent_args.adj = env.neighbor_mask
@@ -31,21 +15,32 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.v_coeff = 1.0
     agent_args.entropy_coeff = 0.0
     agent_args.lr = 5e-5
+    agent_args.lr_p = 5e-4
     agent_args.n_update_v = 10
     agent_args.n_update_pi = 10
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
-    agent_args.use_rtg = True
+    agent_args.use_rtg = False
     agent_args.advantage_norm = True
     agent_args.observation_space = env.observation_space
-    agent_args.observation_dim = agent_args.observation_space.shape[0]
+    agent_args.hidden_state_dim = 32
+    agent_args.embedding_sizes = [env.observation_space.shape[0], 32, agent_args.hidden_state_dim]
+    agent_args.observation_dim = agent_args.hidden_state_dim
     agent_args.action_space = env.action_space
     agent_args.adj = env.neighbor_mask
     agent_args.radius_v = radius_v
     agent_args.radius_pi = radius_pi
     agent_args.radius_p = radius_p
 
-    p_args = None
+    p_args = Config()
+    p_args.n_conv = 1
+    p_args.n_embedding = agent_args.action_space.n
+    p_args.residual = True
+    p_args.edge_embed_dim = 96
+    p_args.node_embed_dim = 64
+    p_args.edge_hidden_size = [64, 64]
+    p_args.node_hidden_size = [64, 64]
+    p_args.reward_coeff = 100.0
     agent_args.p_args = p_args
 
     v_args = Config()
@@ -60,6 +55,22 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     action_dim = env.action_space.n
     pi_args.sizes = [-1, 64, 64, action_dim]
     agent_args.pi_args = pi_args
+
+    alg_args = Config()
+    alg_args.n_iter = 25000
+    alg_args.n_warmup = 200
+    alg_args.n_model_update = 10
+    alg_args.n_model_update_warmup = 25
+    alg_args.n_test = 5
+    alg_args.test_interval = 10
+    alg_args.rollout_length = 400
+    alg_args.test_length = 400
+    alg_args.max_episode_len = 400
+    alg_args.model_based = True
+    alg_args.n_traj = 1024
+    alg_args.model_traj_length = 1
+    alg_args.model_batch_size = 128
+    alg_args.model_buffer_size = int(1e5)
 
     alg_args.agent_args = agent_args
 

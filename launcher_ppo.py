@@ -6,16 +6,18 @@ import time
 import warnings
 from algorithms.utils import Config, LogClient, LogServer
 from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedFlowGridFn
-from algorithms.config.FLOW_PPO import getArgs
+from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
+from algorithms.envs.Ring import makeRingAttenuation
+from algorithms.config.Eight_DMPPO import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
-from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
+from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
 import torch
 
 warnings.filterwarnings('ignore')
 
 def getEnvArgs():
     env_args = Config()
-    env_args.n_env = 2
+    env_args.n_env = 1
     env_args.n_cpu = 1 # per environment
     env_args.n_gpu = 0
     return env_args
@@ -27,7 +29,7 @@ def getRunArgs():
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
     run_args.n_gpu = 0
-    run_args.debug = True
+    run_args.debug = False
     run_args.test = False
     run_args.profiling = False
     run_args.name = 'standard'
@@ -59,8 +61,12 @@ def override(alg_args, run_args, env_fn_train):
         alg_args.rollout_length = 5
         alg_args.test_length = 1
         alg_args.model_buffer_size = 10
-        alg_args.n_warmup=1
-        alg_args.n_test=1
+        alg_args.n_model_update = 3
+        alg_args.n_model_update_warmup = 3
+        alg_args.n_warmup = 1
+        alg_args.n_test = 1
+        alg_args.n_traj = 4
+        alg_args.n_inner_iter = 10
     if run_args.test:
         alg_args.n_warmup = 0
         alg_args.n_test = 10
@@ -85,8 +91,8 @@ def override(alg_args, run_args, env_fn_train):
     return alg_args, run_args
 
 env_args = getEnvArgs()
-env_fn_train = makeVectorizedFlowGridFn(env_args)
-env_fn_test = makeFlowGridTest
+env_fn_train = makeFigureEight2
+env_fn_test = makeFigureEightTest
 env_train = env_fn_train()
 env_test = env_fn_test()
 run_args = getRunArgs()
@@ -94,8 +100,8 @@ alg_args = initArgs(run_args, env_train, env_test)
 alg_args, run_args = override(alg_args, run_args, env_fn_train)
 
 os.environ['CUDA_VISIBLE_DEVICES']='0'
-ray.init(ignore_reinit_error = True, num_gpus=len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
-logger = LogServer.remote({'run_args':run_args, 'algo_args':alg_args}, mute=run_args.debug or run_args.test or run_args.profiling)
+#ray.init(ignore_reinit_error = True, num_gpus=len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
+logger = LogServer({'run_args':run_args, 'algo_args':alg_args}, mute=run_args.debug or run_args.test or run_args.profiling)
 logger = LogClient(logger)
 agent = initAgent(logger, run_args.device, alg_args.agent_args)
 
