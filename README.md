@@ -17,6 +17,11 @@ Interface:
 The state, reward, done should all be numpy arrays
 For MARL, done should be given for each agent, although we assume they are the same.
 
+SUMO version:
+The commit number of SUMO, available at https://github.com/eclipse/sumo used to run the results is “1d4338ab80”.
+
+The environment specification is in environment.yml.
+
 Usage:
 ```python
 python launcher_ppo.py
