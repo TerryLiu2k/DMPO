@@ -95,7 +95,7 @@ class ParameterizedModel(nn.Module):
                 state_loss = state_loss.mean(dim=1)
                 state_var = self.MSE(s1, s1.mean(dim=0, keepdim=True).expand(*s1.shape))
                 # we assume the components of state are of similar magnitude
-                rel_state_loss = state_loss.mean() / state_var.mean()
+                rel_state_loss = state_loss.mean() / (state_var.mean() + 1e-5)
                 self.logger.log(rel_state_loss=rel_state_loss)
             else:
                 state_loss = self.NLL(state, s1, sq_variance)
@@ -367,7 +367,8 @@ class GraphConvolutionalModel(nn.Module):
             
             
             if n_embedding != 0:
-                self.action_embedding = nn.Embedding(action_dim, n_embedding)
+                self.action_embedding_fn = nn.Embedding(action_dim, n_embedding)
+                self.action_embedding = lambda x: self.action_embedding_fn(x.squeeze(-1))
             else:
                 self.action_embedding = nn.Identity()
 
@@ -375,7 +376,7 @@ class GraphConvolutionalModel(nn.Module):
             """
             Input: 
                 h_ls: list of tensors with sizes of [batch_size, edge_embed_dim]
-                a: [batch_size] (discrete) or [batch_size, action_dim] (continuous)
+                a: [batch_size, action_dim]
             Output: 
                 h: [batch_size, node_embed_dim]
             """
@@ -397,6 +398,7 @@ class GraphConvolutionalModel(nn.Module):
                 self.nets.append(nn.Sequential(*[nn.Linear(input_dim, output_dim), output_activation()]))
         
         def forward(self, h):
+            # input dim = 3, output the same
             items = []
             for i in range(self.n_agent):
                 items.append(self.nets[i](h.select(dim=1, index=i)))
@@ -428,22 +430,20 @@ class GraphConvolutionalModel(nn.Module):
     def predict(self, s, a):
         """
             Input: 
-                s: [batch_size, n_agent, state_dim] # raw input
-                a: [batch_size, n_agent] (discrete) or [batch_size, n_agent, action_dim] (continuous)
+                s: [batch_size, n_agent, state_dim]
+                a: [batch_size, n_agent, action_dim]
             Output: [batch_size, n_agent, state_dim] # same as input state
         """
         with torch.no_grad():
             r1, s1, d1 = self.forward(s, a)
-            done = torch.clamp(d1.unsqueeze(-1), 0., 1.)
+            done = torch.clamp(d1, 0., 1.)
             done = torch.cat([1 - done, done], dim=-1)
             done = Categorical(done).sample() > 0  # [b]
             return r1, s1, done
     
     def train(self, s, a, r, s1, d, length = 1):
         """
-        Input shape:
-        s: [n_traj, T, n_agent, dim_s]
-        a: [n_traj, T, n_agent, dim_a] or [n_traj, T, n_agent]
+        Input shape: [batch_size, T, n_agent, dim]
         """
         pred_s, pred_r, pred_d = [], [], []
         s0 = s.select(dim=1, index=0)
@@ -458,15 +458,17 @@ class GraphConvolutionalModel(nn.Module):
         state_pred = torch.stack(pred_s, dim=1)
         done_pred = torch.stack(pred_d, dim=1)
 
-        state_loss = self.MSE(state_pred, s1).mean(dim=-1)
-        state_var = self.MSE(s1, s1.mean(dim=0, keepdim=True).mean(dim=1, keepdim=True).expand(*s1.shape))
-        rel_state_loss = state_loss.mean() / (state_var.mean() + 1e-7)
-        self.logger.log(state_loss=state_loss.mean(), state_var=state_var.mean(), rel_state_loss=rel_state_loss)
-        loss = state_loss.mean()
+        state_loss = self.MSE(state_pred, s1).mean()  
+        s1_view = s1.view(-1, s1.shape[-1])
+        state_var = self.MSE(s1_view, s1_view.mean(dim=0, keepdim=True).expand(*s1_view.shape))
+        rel_state_loss = state_loss / (state_var.mean() + 1e-7)
+        self.logger.log(state_loss=state_loss, state_var=state_var.mean(), rel_state_loss=rel_state_loss)
+        loss = state_loss
 
         reward_loss = self.MSE(reward_pred, r)
         loss += self.reward_coeff * reward_loss.mean()
-        reward_var = self.MSE(r, r.mean(dim=0, keepdim=True).mean(dim=1, keepdim=True).expand(*r.shape)).mean()
+        r_view = r.view(-1, r.shape[-1])
+        reward_var = self.MSE(r_view, r_view.mean(dim=0, keepdim=True).expand(*r_view.shape)).mean()
         rel_reward_loss = reward_loss.mean() / (reward_var.mean() + 1e-7)
 
         self.logger.log(reward_loss=reward_loss,
@@ -486,24 +488,28 @@ class GraphConvolutionalModel(nn.Module):
         return (loss, rel_state_loss)
     
     def forward(self, s, a):
-        embedding = self.node_embedding(s)
+        """
+            Input: [batch_size, n_agent, state_dim]
+            Output: [batch_size, n_agent, state_dim]
+        """
+        embedding = self.node_embedding(s) # dim = 3
         for _ in range(self.n_conv):
             edge_info_of_nodes = [[] for __ in range(self.n_agent)]
             for edge_net in self.edge_nets:
-                edge_info = edge_net(embedding)
+                edge_info = edge_net(embedding) # dim = 2
                 edge_info_of_nodes[edge_net.i].append(edge_info)
                 edge_info_of_nodes[edge_net.j].append(edge_info)
             node_preds = []
             for i in range(self.n_agent):
                 node_net = self.node_nets[i]
-                node_pred = node_net(edge_info_of_nodes[i], a.select(dim=1, index=i))
+                node_pred = node_net(edge_info_of_nodes[i], a.select(dim=1, index=i)) # dim = 2
                 node_preds.append(node_pred)
-            embedding = torch.stack(node_preds, dim=1)
+            embedding = torch.stack(node_preds, dim=1) # dim = 3
         state_pred = self.state_head(embedding)
         if self.residual:
             state_pred += s
-        reward_pred = self.reward_head(embedding).squeeze(-1)
-        done_pred = self.done_head(embedding).squeeze(-1)
+        reward_pred = self.reward_head(embedding)
+        done_pred = self.done_head(embedding)
         return reward_pred, state_pred, done_pred
 
     def _init_node_nets(self):
@@ -632,7 +638,7 @@ class CategoricalActor(nn.Module):
 
     def __init__(self, **net_args):
         super().__init__()
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=-1)
         net_fn = net_args['network']
         self.network = net_fn(**net_args)
         self.eps = 1e-5
@@ -642,8 +648,6 @@ class CategoricalActor(nn.Module):
 
     def forward(self, obs):
         logit = self.network(obs)
-        while len(logit.shape) > 2:
-            logit = logit.squeeze(-1)  # HW of size 1 if CNN
         probs = self.softmax(logit)
         probs = (probs + self.eps)
         probs = probs / probs.sum(dim=-1, keepdim=True)
@@ -674,6 +678,24 @@ class RegressionActor(nn.Module):
         if a is None: # acting
             return
 
+class GaussianActor(nn.Module):
+    def __init__(self, action_dim, **net_args):
+        super(GaussianActor, self).__init__()
+        net_fn = net_args['network']
+        self.network = net_fn(**net_args)
+        self.output_size = net_args['sizes'][-1]
+        self.action_head = nn.Linear(self.output_size, action_dim)
+        self.log_std = torch.nn.Parameter(- 0.5 * torch.ones(action_dim, dtype=torch.float32))
+
+    def forward(self, obs, a=None):
+        output = self.network(obs)
+        mean = self.action_head(output)
+        std = torch.exp(self.log_std).expand(*mean.shape)
+        if a is None: # acting
+            return mean, std
+        else:
+            distri = Normal(mean, std)
+            return distri.log_prob(a).sum(dim=-1)
 
 class SquashedGaussianActor(nn.Module):
     """

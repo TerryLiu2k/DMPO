@@ -15,9 +15,9 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.n_model_update_warmup = 10
     alg_args.n_test = 5
     alg_args.test_interval = 20
-    alg_args.rollout_length = 1500
-    alg_args.test_length = 1500
-    alg_args.max_episode_len = 1500
+    alg_args.rollout_length = 600
+    alg_args.test_length = 600
+    alg_args.max_episode_len = 600
     alg_args.model_based = False
     alg_args.load_pretrained_model = False
     alg_args.pretrained_model = None
@@ -50,7 +50,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.radius_v = radius_v
     agent_args.radius_pi = radius_pi
     agent_args.radius_p = radius_p
-    agent_args.squeeze = True
+    agent_args.squeeze = False
 
     p_args = None
     agent_args.p_args = p_args

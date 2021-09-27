@@ -57,7 +57,7 @@ class FigureEightWrapper(AccelEnv):
     
     def step(self, rl_actions: np.array):
         while rl_actions.ndim > 1:
-            rl_actions.squeeze(-1)
+            rl_actions = rl_actions.squeeze(-1)
         _, _, d, info = super().step(rl_actions)
         s1 = self.get_state_()
         r = self.get_reward_()

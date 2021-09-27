@@ -16,9 +16,8 @@ class CACCWrapper(gym.Wrapper):
         config.read(config_path)
         env = CACCEnv(config['ENV_CONFIG'])
         env.init_data(True, False, "/tmp")
-        self.k = 0
         super().__init__(env)
-        self.observation_space = Box(-1e6, 1e6, [(self.k*2+1)*5])
+        self.observation_space = Box(-1e6, 1e6, [5])
         self.action_space = Discrete(4)
         self.bias=bias
         self.std=std
@@ -41,6 +40,9 @@ class CACCWrapper(gym.Wrapper):
         self.state = state
         return state
     
+    def get_reward_(self):
+        return self.env._get_reward()
+    
     def state2Reward(self, state):
         # accepts a (gpu) tensor
         reward, done =  self.env.state2Reward(state)
@@ -56,6 +58,8 @@ class CACCWrapper(gym.Wrapper):
         return reward
         
     def step(self, action):
+        if isinstance(action, np.ndarray):
+            action = action.tolist()
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)

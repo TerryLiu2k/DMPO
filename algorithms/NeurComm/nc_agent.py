@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 from models import MA2C_NC, MA2C_DIAL
 class NeurCommAgent(MA2C_NC):
     def __init__(self, agent_args, seed, use_gpu):
@@ -13,23 +13,24 @@ class NeurCommAgent(MA2C_NC):
         self.observation_dim = agent_args.observation_dim
         self.action_space = agent_args.action_space
         self.action_filter, self.action_decoder = self._init_action_filter()
+        self.fp = np.ones((self.n_agent, self.n_a)) / self.n_a
     
     def act(self, s, requires_log=False):
         ob = s
         done = False
         # pre-decision
         policy, action = self._get_policy(ob, done)
-        action = self.action_filter(action)
         # post-decision
-        value, n_action = self._get_value(ob, done, action)
+        value = self._get_value(ob, done, action)
         self._update_fingerprint(policy)
+        action = self.action_filter(action)
         return action
 
     def get_logp(self, s, a):
         policy = self.forward(s, done=False, ps=self._get_fingerprint())
         if a.ndim < s.n_dim:
             a.unsqueeze(-1)
-        return numpy.take_along_axis(s, a, -1)
+        return np.take_along_axis(s, a, -1)
 
     def updateAgent(self, traj, clip=None):
         pass
@@ -44,7 +45,7 @@ class NeurCommAgent(MA2C_NC):
         pass
 
     def _reset(self):
-        self._update_fingerprint(self._initial_policy())
+        self.fp = np.ones((self.n_agent, self.n_a)) / self.n_a
         pass
 
     def _get_policy(self, ob, done, mode='train'):

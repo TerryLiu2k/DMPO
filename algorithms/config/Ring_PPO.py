@@ -9,15 +9,18 @@ def getArgs(radius_p, radius_v, radius_pi, env):
 
     alg_args = Config()
     alg_args.n_iter = 25000
-    alg_args.n_warmup = 6
+    alg_args.n_inner_iter = 1
+    alg_args.n_warmup = 0
     alg_args.n_model_update = 5
     alg_args.n_model_update_warmup = 10
     alg_args.n_test = 5
-    alg_args.test_interval = 5
-    alg_args.rollout_length = 500
+    alg_args.test_interval = 20
+    alg_args.rollout_length = 3000
     alg_args.test_length = 3000
     alg_args.max_episode_len = 3000
     alg_args.model_based = False
+    alg_args.load_pretrained_model = False
+    alg_args.pretrained_model = None
     alg_args.model_batch_size = 128
     alg_args.model_buffer_size = 0
 
@@ -29,6 +32,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.clip = 0.2
     agent_args.target_kl = 0.01
     agent_args.v_coeff = 1.0
+    agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
     agent_args.lr = 5e-5
     agent_args.lr_v = 5e-4
@@ -37,6 +41,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = True
+    agent_args.use_gae_returns = False
     agent_args.advantage_norm = True
     agent_args.observation_space = env.observation_space
     agent_args.observation_dim = agent_args.observation_space.shape[0]
@@ -60,7 +65,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     pi_args.network = MLP
     pi_args.activation = torch.nn.ReLU
     pi_args.sizes = [-1, 64, 64, 16]
-    pi_args.squash = True
+    pi_args.squash = False
     agent_args.pi_args = pi_args
 
     alg_args.agent_args = agent_args

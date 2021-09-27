@@ -412,7 +412,7 @@ class LogServer(object):
         
     def save(self, state_dict=None, info=None, flush=True):
         if not state_dict is None:
-            self.state_dict.update(state_dict)
+            self.state_dict.update(**state_dict)
         if flush and time.time() - self.last_save >= self.save_period:
             filename = f"{self.step}_{info}.pt"
             if not self.mute:

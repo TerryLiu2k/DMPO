@@ -5,12 +5,10 @@ import ray
 import time
 import warnings
 from algorithms.utils import Config, LogClient, LogServer
-from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedFlowGridFn
-from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
-from algorithms.envs.Ring import makeRingAttenuation
-from algorithms.config.Ring_DMPPO import getArgs
+from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
+from algorithms.config.Catchup_PPO import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
-from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
+from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
 import torch
 
 warnings.filterwarnings('ignore')
@@ -29,7 +27,7 @@ def getRunArgs():
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
     run_args.n_gpu = 0
-    run_args.debug = False
+    run_args.debug = True
     run_args.test = False
     run_args.profiling = False
     run_args.name = 'standard'
@@ -91,8 +89,8 @@ def override(alg_args, run_args, env_fn_train):
     return alg_args, run_args
 
 env_args = getEnvArgs()
-env_fn_train = makeRingAttenuation
-env_fn_test = makeRingAttenuation
+env_fn_train = CACC_catchup
+env_fn_test = CACC_catchup
 env_train = env_fn_train()
 env_test = env_fn_test()
 run_args = getRunArgs()
