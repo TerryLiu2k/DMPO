@@ -23,12 +23,12 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.load_pretrained_model = True
     alg_args.pretrained_model = 'checkpoints/standard_makeFigureEight2_MB_DPPOAgent_17361/81501_5222.7847817614875.pt'
     alg_args.n_traj = 2048
-    alg_args.model_traj_length = 8
-    alg_args.model_error_thres = 0.
+    alg_args.model_traj_length = 25
+    alg_args.model_error_thres = 2e-4
     alg_args.model_batch_size = 256
     alg_args.model_buffer_size = 15
-    alg_args.model_update_length = 2
-    alg_args.model_length_schedule = lambda x: min(25, 8 + int(x/4))
+    alg_args.model_update_length = 4
+    alg_args.model_length_schedule = None
 
     agent_args = Config()
     agent_args.adj = env.neighbor_mask
@@ -48,7 +48,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = False
-    agent_args.use_gae_returns = True
+    agent_args.use_gae_returns = False
     agent_args.advantage_norm = True
     agent_args.observation_space = env.observation_space
     agent_args.hidden_state_dim = 8
@@ -69,7 +69,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     p_args.node_embed_dim = 8
     p_args.edge_hidden_size = [16, 16]
     p_args.node_hidden_size = [16, 16]
-    p_args.reward_coeff = 10.0
+    p_args.reward_coeff = 1.
     agent_args.p_args = p_args
 
     v_args = Config()

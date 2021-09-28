@@ -20,6 +20,7 @@ class RingAttenuationWrapper(WaveAttenuationEnv):
         self.init_distance_mask()
         self.n_s_ls = [2] * self.n_agent
         self.n_a_ls = [1] * self.n_agent
+        self.target_vel = 20.
 
     @property
     def action_space(self):
@@ -88,7 +89,7 @@ class RingAttenuationWrapper(WaveAttenuationEnv):
 
         # reward average velocity
         eta_2 = 4.
-        reward = eta_2 * np.array(vel) / (20 * self.n_agent)
+        reward = eta_2 * (self.target_vel - (self.target_vel - np.array(vel)).abs()) / (20 * self.n_agent)
 
         # punish accelerations (should lead to reduced stop-and-go waves)
         eta = 4  # 0.25
