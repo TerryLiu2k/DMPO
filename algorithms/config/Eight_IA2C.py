@@ -19,7 +19,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.rollout_length = 1500
     alg_args.test_length = 1500
     alg_args.max_episode_len = 1500
-    alg_args.model_based = True
+    alg_args.model_based = False
     alg_args.load_pretrained_model = False
     alg_args.pretrained_model = 'checkpoints/standard_makeFigureEight2_MB_DPPOAgent_17361/81501_5222.7847817614875.pt'
     alg_args.n_traj = 2048
@@ -42,13 +42,13 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.entropy_coeff = 0.0
     agent_args.lr = 5e-5
     agent_args.lr_v = 5e-5
-    agent_args.lr_p = 5e-4
+    agent_args.lr_p = 5e-4 * 5 # since update time is lower
     agent_args.n_update_v = 15
-    agent_args.n_update_pi = 5
+    agent_args.n_update_pi = 1
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = False
-    agent_args.use_gae_returns = True
+    agent_args.use_gae_returns = False
     agent_args.advantage_norm = True
     agent_args.observation_space = env.observation_space
     agent_args.hidden_state_dim = 8

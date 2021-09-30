@@ -9,9 +9,9 @@ from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedF
 from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
 from algorithms.envs.Ring import makeRingAttenuation
 from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
-from algorithms.config.Eight_DMPPO import getArgs
+from algorithms.config.Eight_IA2C import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
-from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
+from algorithms.mbdppo.MB_DPPO import IA2C as agent_fn
 import torch
 
 warnings.filterwarnings('ignore')
@@ -108,7 +108,7 @@ agent = initAgent(logger, run_args.device, alg_args.agent_args)
 
 torch.set_num_threads(run_args.n_thread)
 print(f"n_threads {torch.get_num_threads()}")
-print(f"n_gpus {torch.cuda.device_count()}") 
+print(f"n_gpus {torch.cuda.device_count()}")
 
 if run_args.profiling:
     import cProfile

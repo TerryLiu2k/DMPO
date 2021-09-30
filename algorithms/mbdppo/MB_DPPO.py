@@ -158,7 +158,7 @@ class TrajectoryBuffer:
         for i in range(n):
             traj_dict = {}
             for name in names:
-                traj_dict[name] = traj_all[name][i]
+                traj_dict[name] = traj_all[name][i]  #ndecth batch into single traj
             trajs.append(Trajectory(**traj_dict))
         return trajs
 
@@ -246,7 +246,7 @@ class OnPolicyRunner:
             if iter % self.test_interval == 0:
                 mean_return = self.test()
                 self.agent.save(info = mean_return)
-            trajs = self.rollout_env()
+            trajs = self.rollout_env()  #  TO cheak: rollout
             if self.model_based:
                 self.model_buffer.storeTrajs(trajs)
                 self.updateModel()
@@ -258,7 +258,7 @@ class OnPolicyRunner:
                     else:
                         trajs = self.rollout_model(trajs)
                 if self.clip_scheme is not None:
-                    info = self.agent.updateAgent(trajs, self.clip_scheme(iter))
+                    info = self.agent.updateAgent(trajs, self.clip_scheme(iter))     #  TO cheak: updata
                 else:
                     info = self.agent.updateAgent(trajs)
                 agentInfo.append(info)
@@ -400,6 +400,213 @@ class OnPolicyRunner:
         trajs = [traj.getFraction(length=self.model_update_length) for traj in trajs]
         return self.agent.validateModel(trajs, length=self.model_update_length)
 
+class IA2C(nn.ModuleList):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__()
+        self.logger = logger
+        self.device = device
+        self.n_agent = agent_args.n_agent
+        self.gamma = agent_args.gamma
+        self.lamda = agent_args.lamda
+        self.clip = agent_args.clip
+        self.target_kl = agent_args.target_kl
+        self.v_coeff = agent_args.v_coeff
+        self.v_thres = agent_args.v_thres
+        self.entropy_coeff = agent_args.entropy_coeff
+        self.lr = agent_args.lr
+        self.lr_v = agent_args.lr_v
+        self.n_update_v = agent_args.n_update_v
+        self.n_update_pi = agent_args.n_update_pi
+        self.n_minibatch = agent_args.n_minibatch
+        self.use_reduced_v = agent_args.use_reduced_v
+        self.use_rtg = agent_args.use_rtg
+        self.use_gae_returns = agent_args.use_gae_returns
+
+        self.advantage_norm = agent_args.advantage_norm
+
+        self.observation_dim = agent_args.observation_dim
+        self.action_space = agent_args.action_space
+        self.discrete = isinstance(agent_args.action_space, Discrete)
+        if self.discrete:
+            self.action_dim = self.action_space.n
+            self.action_shape = self.action_dim
+        else:
+            self.action_shape = self.action_space.shape
+            self.action_dim = 1
+            for j in self.action_shape:
+                self.action_dim *= j
+            self.action_low = self.action_space.low.item()
+            self.action_high = self.action_space.high.item()
+            self.squeeze = agent_args.squeeze
+
+        self.adj = torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float)
+        self.radius_v = agent_args.radius_v
+        self.radius_pi = agent_args.radius_pi
+        self.pi_args = agent_args.pi_args
+        self.v_args = agent_args.v_args
+        self.collect_pi, self.actors = self._init_actors()
+        self.collect_v, self.vs = self._init_vs()
+
+        self.optimizer_v = Adam(self.vs.parameters(), lr=self.lr_v)
+        self.optimizer_pi = Adam(self.actors.parameters(), lr=self.lr)
+
+    def act(self, s, requires_log=False):
+        """
+        Requires input of [batch_size, n_agent, dim] or [n_agent, dim].
+        This method is gradient-free. To get the gradient-enabled probability information, use get_logp().
+        Returns a distribution with the same dimensions of input.
+        """
+        with torch.no_grad():
+            dim = s.dim()
+            while s.dim() <= 2:
+                s = s.unsqueeze(0)
+            s = s.to(self.device)
+            s = self.collect_pi.gather(s)  # all state into [ self +  ]
+            # Now s[i].dim() == 2 ([batch_size, dim])
+
+            if self.discrete:
+                probs = []
+                for i in range(self.n_agent):
+                    probs.append(self.actors[i](s[i]))
+                probs = torch.stack(probs, dim=1)
+                return Categorical(probs)
+            else:
+                means, stds = [], []
+                for i in range(self.n_agent):
+                    mean, std = self.actors[i](s[i])
+                    means.append(mean)
+                    stds.append(std)
+                means = torch.stack(means, dim=1)
+                stds = torch.stack(stds, dim=1)
+                while means.dim() > dim:
+                    means = means.squeeze(0)
+                    stds = stds.squeeze(0)
+                return Normal(means, stds)
+
+
+    def _process_traj(self, s, a, r, s1, d, logp):
+        """
+        Input are all in shape [batch_size, T, n_agent, dim]
+        """
+        pass
+
+    def load(self):
+        # set  run_args.init_checkpoint  = None
+        pass
+
+    def checkConverged(self, ls_info):
+        #TODO: not neccessary
+        return False
+
+    def save(self, info=None):
+        self.logger.save(self, info=info)
+
+    def _evalV(self, s):
+        # Requires input in shape [-1, n_agent, dim]
+        s = s.to(self.device)
+        s = self.collect_v.gather(s)
+        values = []
+        for i in range(self.n_agent):
+            values.append(self.vs[i](s[i]))
+        return torch.stack(values, dim=1)
+
+    def _init_actors(self):
+        collect_pi = MultiCollect(torch.matrix_power(self.adj, self.radius_pi), device=self.device)
+        actors = nn.ModuleList()
+        for i in range(self.n_agent):
+            self.pi_args.sizes[0] = collect_pi.degree[i] * self.observation_dim
+            if self.discrete:
+                actors.append(CategoricalActor(**self.pi_args._toDict()))
+            else:
+                actors.append(GaussianActor(action_dim=self.action_dim, **self.pi_args._toDict()))
+        return collect_pi, actors
+
+    def _init_vs(self):
+        collect_v = MultiCollect(torch.matrix_power(self.adj, self.radius_v), device=self.device)
+        vs = nn.ModuleList()
+        for i in range(self.n_agent):
+            self.v_args.sizes[0] = collect_v.degree[i] * self.observation_dim
+            v_fn = self.v_args.network
+            vs.append(v_fn(**self.v_args._toDict()))
+        return collect_v, vs
+
+    def updateAgent(self, trajs, clip=None):
+        time_t = time.time()
+        if clip is None:
+            clip = self.clip
+        n_minibatch = self.n_minibatch
+
+        names = Trajectory.names()
+        traj_all = {name:[] for name in names}
+        for traj in trajs:
+            for name in names:
+                traj_all[name].append(traj[name])
+        traj = {name:torch.stack(value, dim=0) for name, value in traj_all.items()}
+
+        s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
+        s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+        # all in shape [batch_size, T, n_agent, dim]
+        value_old, returns, advantages, reduced_advantages = self._process_traj(**traj)
+
+        advantages_old = reduced_advantages if self.use_reduced_v else advantages
+
+        b, T, n, d_s = s.size()
+        d_a = a.size()[-1]
+        s = s.view(-1, n, d_s)
+        a = a.view(-1, n, d_a)
+        logp = logp.view(-1, n, 1)
+        advantages_old = advantages_old.view(-1, n, 1)
+        returns = returns.view(-1, n, 1)
+        value_old = value_old.view(-1, n, 1)
+        # s, a, logp, adv, ret, v are now all in shape [-1, n_agent, dim]
+
+        batch_total = logp.size()[0]
+        batch_size = int(batch_total/n_minibatch)
+
+        # actor update
+        i_pi = 0
+        for i_pi in range(self.n_update_pi):
+            batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
+            if n_minibatch > 1:
+                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
+                [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
+            batch_logp_new = self.get_logp(batch_state, batch_action)
+
+            # - A * logp - entropy_loss
+            loss_pi =  torch.mean(- batch_advantages_old * batch_logp_new)
+            loss_entropy = - torch.mean(batch_logp_new)
+            loss_actor = loss_pi + loss_entropy
+            self.optimizer_pi.zero_grad()
+            loss_actor.backward()
+            self.optimizer_pi.step()
+            self.logger.log(pi_loss=loss_pi, entropy=loss_entropy, pi_update=None)
+        self.logger.log(pi_update_step=i_pi)
+
+        # critic update
+        for i_v in range(self.n_update_v):
+            batch_returns = returns
+            batch_state = s
+            if n_minibatch > 1:
+                idxs = np.random.randint(0, len(batch_total), size=batch_size)
+                [batch_returns, batch_state] = [item[idxs] for item in [batch_returns, batch_state]]
+            batch_v_new = self._evalV(batch_state)
+            loss_v = ((batch_v_new - batch_returns) ** 2).mean()
+            self.optimizer_v.zero_grad()
+            loss_v.backward()
+            self.optimizer_v.step()
+            var_v = ((batch_returns - batch_returns.mean()) ** 2).mean()
+            rel_v_loss = loss_v / (var_v + 1e-8)
+            self.logger.log(v_loss=loss_v, v_update=None, v_var=var_v, rel_v_loss=rel_v_loss)
+            if rel_v_loss < self.v_thres:
+                break
+        self.logger.log(v_update_step=i_v)
+        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
+        self.logger.log(agent_update_time=time.time()-time_t)
+        return [r.mean().item(), loss_entropy.item()]
+
+
+
+
 
 class DPPOAgent(nn.ModuleList):
     """
@@ -465,7 +672,7 @@ class DPPOAgent(nn.ModuleList):
             while s.dim() <= 2:
                 s = s.unsqueeze(0)
             s = s.to(self.device)
-            s = self.collect_pi.gather(s)
+            s = self.collect_pi.gather(s) # all state into [ self +  ]
             # Now s[i].dim() == 2 ([batch_size, dim])
 
             if self.discrete:
