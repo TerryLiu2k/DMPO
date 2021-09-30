@@ -32,7 +32,7 @@ def getRunArgs():
     run_args.n_gpu = 0
     run_args.debug = False
     run_args.test = False
-    run_args.profiling = False
+    run_args.profiling = True
     run_args.name = 'standard'
     run_args.radius_v = 3
     run_args.radius_pi = 1
@@ -74,17 +74,20 @@ def override(alg_args, run_args, env_fn_train):
     if run_args.profiling:
         alg_args.model_batch_size = 128
         alg_args.n_warmup = 0
+        alg_args.rollout_length = 50
         if alg_args.agent_args.p_args is None:
             alg_args.n_iter = 10
         else:
-            alg_args.n_iter = 10
+            alg_args.n_iter = 1
             alg_args.model_buffer_size = 1000
-            alg_args.n_warmup = 1
+            alg_args.n_warmup = 0
         alg_args.n_test = 1
-        alg_args.max_ep_len = 400
-        alg_args.rollout_length = 400
+        alg_args.max_ep_len = 1
+        alg_args.rollout_length = 8
         alg_args.test_length = 1
         alg_args.test_interval = 100
+        alg_args.n_model_update = 50
+        alg_args.n_inner_iter = 10
     if run_args.seed is None:
         run_args.seed = int(time.time()*1000)%65536
     agent_args.parallel = run_args.parallel

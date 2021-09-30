@@ -822,9 +822,9 @@ class DPPOAgent(nn.ModuleList):
         for i in range(self.n_agent):
             self.pi_args.sizes[0] = collect_pi.degree[i] * self.observation_dim
             if self.discrete:
-                actors.append(CategoricalActor(**self.pi_args._toDict()))
+                actors.append(CategoricalActor(**self.pi_args._toDict()).to(self.device))
             else:
-                actors.append(GaussianActor(action_dim=self.action_dim, **self.pi_args._toDict()))
+                actors.append(GaussianActor(action_dim=self.action_dim, **self.pi_args._toDict()).to(self.device))
         return collect_pi, actors
     
     def _init_vs(self):
@@ -833,7 +833,7 @@ class DPPOAgent(nn.ModuleList):
         for i in range(self.n_agent):
             self.v_args.sizes[0] = collect_v.degree[i] * self.observation_dim
             v_fn = self.v_args.network
-            vs.append(v_fn(**self.v_args._toDict()))
+            vs.append(v_fn(**self.v_args._toDict()).to(self.device))
         return collect_v, vs
     
     def _process_traj(self, s, a, r, s1, d, logp):
