@@ -246,7 +246,7 @@ class OnPolicyRunner:
             if iter % self.test_interval == 0:
                 mean_return = self.test()
                 self.agent.save(info = mean_return)
-            trajs = self.rollout_env()  #  TO cheak: rollout
+            trajs = self.rollout_env()  #  TO cheak: rollout n_step, maybe multi trajs
             if self.model_based:
                 self.model_buffer.storeTrajs(trajs)
                 self.updateModel()
@@ -450,6 +450,32 @@ class IA2C(nn.ModuleList):
         self.optimizer_v = Adam(self.vs.parameters(), lr=self.lr_v)
         self.optimizer_pi = Adam(self.actors.parameters(), lr=self.lr)
 
+    def get_logp(self, s, a):
+        """
+        Requires input of [batch_size, n_agent, dim] or [n_agent, dim].
+        Returns a tensor whose dim() == 3.
+        """
+        s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
+        dim = s.dim()
+        while s.dim() <= 2:
+            s = s.unsqueeze(0)
+            a = a.unsqueeze(0)
+        while a.dim() < s.dim():
+            a = a.unsqueeze(-1)
+        s = self.collect_pi.gather(s)
+        # Now s[i].dim() == 2, a.dim() == 3
+        log_prob = []
+        for i in range(self.n_agent):
+            if self.discrete:
+                probs = self.actors[i](s[i])
+                log_prob.append(torch.log(torch.gather(probs, dim=-1, index=torch.select(a, dim=1, index=i).long())))
+            else:
+                log_prob.append(self.actors[i](s[i], a.select(dim=1, index=i)))
+        log_prob = torch.stack(log_prob, dim=1)
+        while log_prob.dim() < 3:
+            log_prob = log_prob.unsqueeze(-1)
+        return log_prob
+
     def act(self, s, requires_log=False):
         """
         Requires input of [batch_size, n_agent, dim] or [n_agent, dim].
@@ -488,7 +514,36 @@ class IA2C(nn.ModuleList):
         """
         Input are all in shape [batch_size, T, n_agent, dim]
         """
-        pass
+        with torch.no_grad():
+            b, T, n, dim_s = s.shape
+            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+            value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
+
+            returns = torch.zeros(value.size(), device=self.device)
+            deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
+            prev_value = self._evalV(s1.select(1, T - 1))
+            if not self.use_rtg:
+                prev_return = prev_value
+            else:
+                prev_return = torch.zeros_like(prev_value)
+            prev_advantage = torch.zeros_like(prev_return)
+            d_mask = d.float()
+            for t in reversed(range(T)):
+                deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
+                advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
+                if self.use_gae_returns:
+                    returns[:, t, :, :] = value.select(1, t).detach() + advantages.select(1, t)
+                else:
+                    returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1, t)) * prev_return
+
+                prev_return = returns.select(1, t)
+                prev_value = value.select(1, t)
+                prev_advantage = advantages.select(1, t)
+            reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
+            if self.advantage_norm and reduced_advantages.size()[1] > 1:
+                reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
+                advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
+        return value, returns, advantages, reduced_advantages
 
     def load(self):
         # set  run_args.init_checkpoint  = None
@@ -538,17 +593,25 @@ class IA2C(nn.ModuleList):
 
         names = Trajectory.names()
         traj_all = {name:[] for name in names}
+        max_traj_length = max([i.length for i in trajs])
         for traj in trajs:
             for name in names:
-                traj_all[name].append(traj[name])
+                tensor_shape = traj[name].shape
+                full_part_shape = [max_traj_length - tensor_shape[0]] + list(tensor_shape[1:])
+                if name == 'd':
+                    traj_all[name].append(torch.cat([traj[name], torch.ones(full_part_shape, dtype=torch.bool)], dim = 0))
+                else:
+                    traj_all[name].append(torch.cat([traj[name], torch.zeros(full_part_shape, dtype=traj[name].dtype)], dim = 0))
+        # should be 4-dim [batch * step * n_agent * dim]
         traj = {name:torch.stack(value, dim=0) for name, value in traj_all.items()}
+
 
         s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
         s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
         # all in shape [batch_size, T, n_agent, dim]
         value_old, returns, advantages, reduced_advantages = self._process_traj(**traj)
 
-        advantages_old = reduced_advantages if self.use_reduced_v else advantages
+        advantages_old = reduced_advantages if self.use_reduced_v else advantages #  set use_reduced_v as False
 
         b, T, n, d_s = s.size()
         d_a = a.size()[-1]
@@ -603,8 +666,6 @@ class IA2C(nn.ModuleList):
         self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
         self.logger.log(agent_update_time=time.time()-time_t)
         return [r.mean().item(), loss_entropy.item()]
-
-
 
 
 

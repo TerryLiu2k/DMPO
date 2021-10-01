@@ -60,6 +60,9 @@ class CACCWrapper(gym.Wrapper):
     def step(self, action):
         if isinstance(action, np.ndarray):
             action = action.tolist()
+        # for action dim problem list 1 * action_dim
+        if type(action[0]) == list:
+            action = action[0]
         state, reward, done, info = self.env.step(action)
         state = np.array(state, dtype=np.float32)
         reward = np.array(reward, dtype=np.float32)
@@ -69,6 +72,9 @@ class CACCWrapper(gym.Wrapper):
         return state, np.clip(reward, -5, 5), done, None
 
     def get_state(self):
+        return self.state
+
+    def get_state_(self):
         return self.state
 
 

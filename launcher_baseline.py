@@ -9,10 +9,18 @@ from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedF
 from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
 from algorithms.envs.Ring import makeRingAttenuation
 from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
-from algorithms.config.Eight_IA2C import getArgs
+from algorithms.config.Eight_IA2C import getArgs as getArgs_eight_IA2C
+from algorithms.config.Eight_IA2C import getArgs as getArgs_ring_IA2C
+from algorithms.config.Catchup_IA2C import getArgs as getArgs_catchup_IA2C
+from algorithms.config.Slowdown_IA2C import getArgs as getArgs_slowdown_IA2C
+
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
 from algorithms.mbdppo.MB_DPPO import IA2C as agent_fn
+from algorithms.mbdppo.MB_DPPO import DPPOAgent
+from
+
 import torch
+import argparse
 
 warnings.filterwarnings('ignore')
 
@@ -44,13 +52,42 @@ def getRunArgs():
     run_args.seed = None
     return run_args
 
-def initArgs(run_args, env_train, env_test):
+def initArgs(run_args, env_train, env_test, input_arg):
     ref_env = env_train
-    alg_args = getArgs(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
+    # TODO: should also consider algo
+    if input_arg.env == 'eight':
+        alg_args = getArgs_eight_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
+    elif input_arg.env == 'ring':
+        alg_args = getArgs_ring_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
+    elif input_arg.env == 'catchup':
+        run_args.radius_v = 2
+        run_args.radius_pi = 1
+        run_args.radius_p = 1
+        alg_args = getArgs_catchup_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
+    elif input_arg.env == 'slowdown':
+        run_args.radius_v = 2
+        run_args.radius_pi = 1
+        run_args.radius_p = 1
+        alg_args = getArgs_slowdown_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
+    else:
+        alg_args = None
     return alg_args
 
 def initAgent(logger, device, agent_args):
     return agent_fn(logger, device, agent_args)
+
+def initEnv(input_args):
+    if input_args.env == 'eight':
+        env_fn_train, env_fn_test = makeFigureEight2, makeFigureEightTest
+    elif input_args.env == 'ring':
+        env_fn_train, env_fn_test = makeRingAttenuation, makeRingAttenuation
+    elif input_args.env == 'catchup':
+        env_fn_train, env_fn_test = CACC_catchup, CACC_catchup
+    elif input_args.env == 'slowdown':
+        env_fn_train, env_fn_test = CACC_slowdown, CACC_slowdown
+    else:
+        env_fn_train, env_fn_test = None
+    return env_fn_train, env_fn_test
 
 def override(alg_args, run_args, env_fn_train):
     alg_args.env_fn = env_fn_train
@@ -91,13 +128,28 @@ def override(alg_args, run_args, env_fn_train):
     run_args.name = '{}_{}_{}_{}'.format(run_args.name, env_fn_train.__name__, agent_fn.__name__, run_args.seed)
     return alg_args, run_args
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env', type=str, required=False, default='catchup', help="environment(eight/ring/catchup/slowdown)")
+    parser.add_argument('--algo', type=str, required=False, default='IA2C', help="algorithm(DMPPO/IA2C/IC3NET) ")
+    args = parser.parse_args()
+    '''
+    if not args.option:
+        parser.print_help()
+        exit(1)
+    '''
+    return args
+
+
+# get arg from cli
+input_args = parse_args()
+
 env_args = getEnvArgs()
-env_fn_train = makeFigureEight2
-env_fn_test = makeFigureEightTest
+env_fn_train, env_fn_test = initEnv(input_args)
 env_train = env_fn_train()
 env_test = env_fn_test()
 run_args = getRunArgs()
-alg_args = initArgs(run_args, env_train, env_test)
+alg_args = initArgs(run_args, env_train, env_test, input_args)
 alg_args, run_args = override(alg_args, run_args, env_fn_train)
 
 os.environ['CUDA_VISIBLE_DEVICES']='0'
