@@ -1,10 +1,10 @@
 import os
 
-mode = 'finetune'  # 'final' or 'finetune'
+mode = 'final'  # 'final' or 'finetune'
 
-env_ls = [ 'eight' ]#'ring', , 'catchup','slowdown'
-algo_ls = ['IA2C']
-name = '[finetune-3]'
+env_ls = [ 'eight', 'ring' ] #'catchup','slowdown'
+algo_ls = ['IC3Net']
+name = '[finetune]'
 
 if mode == 'final':
     seed_number = 5

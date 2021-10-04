@@ -418,7 +418,7 @@ class LogServer(object):
         self.name = args.name
         if not mute:
             run=wandb.init(
-                project="RL-final",
+                project="RL-new",
                 config={"run_args":args._toDict(recursive=True),
                         "algo_args":algo_args._toDict(recursive=True)},
                 name=args.name,
