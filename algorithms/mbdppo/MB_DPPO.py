@@ -2,8 +2,8 @@ import time
 
 from numpy.core.numeric import indices
 from torch.distributions.normal import Normal
-from algorithms.utils import collect
-from algorithms.models import GaussianActor, GraphConvolutionalModel, MLP
+from algorithms.utils import collect, mem_report
+from algorithms.models import GaussianActor, GraphConvolutionalModel, MLP, CategoricalActor
 from tqdm.std import trange
 from algorithms.algorithm import ReplayBuffer
 from ray.state import actors
@@ -347,7 +347,11 @@ class OnPolicyRunner:
             d = np.array(d)
             if d.any() or (self.episode_len == self.max_episode_len):
                 self.logger.log(episode_reward=self.episode_reward.sum(), episode_len = self.episode_len, episode=None)
-                _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0
+                try:
+                    _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0#TODO:catch up the error
+                except Exception as e:
+                    print('reset error!:', e)
+                    _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0  # TODO:catch up the error
                 trajs += traj.retrieve()
                 traj = TrajectoryBuffer(device=self.device)
         trajs += traj.retrieve()
@@ -413,6 +417,7 @@ class IA2C(nn.ModuleList):
         self.v_coeff = agent_args.v_coeff
         self.v_thres = agent_args.v_thres
         self.entropy_coeff = agent_args.entropy_coeff
+        self.entropy_coeff_decay = agent_args.entropy_coeff_decay  # only in IA2C
         self.lr = agent_args.lr
         self.lr_v = agent_args.lr_v
         self.n_update_v = agent_args.n_update_v
@@ -438,7 +443,8 @@ class IA2C(nn.ModuleList):
             self.action_low = self.action_space.low.item()
             self.action_high = self.action_space.high.item()
             self.squeeze = agent_args.squeeze
-
+        # if adj diag is not one, we should add a eye matrix
+        agent_args.adj = (torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float)>0) | torch.eye(self.n_agent, device=device).bool()
         self.adj = torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float)
         self.radius_v = agent_args.radius_v
         self.radius_pi = agent_args.radius_pi
@@ -626,25 +632,6 @@ class IA2C(nn.ModuleList):
         batch_total = logp.size()[0]
         batch_size = int(batch_total/n_minibatch)
 
-        # actor update
-        i_pi = 0
-        for i_pi in range(self.n_update_pi):
-            batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
-            if n_minibatch > 1:
-                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
-                [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
-            batch_logp_new = self.get_logp(batch_state, batch_action)
-
-            # - A * logp - entropy_loss
-            loss_pi =  torch.mean(- batch_advantages_old * batch_logp_new)
-            loss_entropy = - torch.mean(batch_logp_new)
-            loss_actor = loss_pi + loss_entropy
-            self.optimizer_pi.zero_grad()
-            loss_actor.backward()
-            self.optimizer_pi.step()
-            self.logger.log(pi_loss=loss_pi, entropy=loss_entropy, pi_update=None)
-        self.logger.log(pi_update_step=i_pi)
-
         # critic update
         for i_v in range(self.n_update_v):
             batch_returns = returns
@@ -663,11 +650,244 @@ class IA2C(nn.ModuleList):
             if rel_v_loss < self.v_thres:
                 break
         self.logger.log(v_update_step=i_v)
+
+
+        # use the updated value
+        _, _, advantages, _ = self._process_traj(**traj)
+        advantages_old = reduced_advantages if self.use_reduced_v else advantages  # set use_reduced_v as False
+        advantages_old = advantages_old.view(-1, n, 1)
+
+
+        # actor update
+        i_pi = 0
+        for i_pi in range(self.n_update_pi):
+            batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
+            if n_minibatch > 1:
+                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
+                [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
+            batch_logp_new = self.get_logp(batch_state, batch_action)
+
+            # - A * logp - entropy_loss
+            loss_pi =  torch.mean(- batch_advantages_old * batch_logp_new)
+            loss_entropy = - torch.mean(batch_logp_new)
+            updata_entropy_coff = max(self.entropy_coeff - self.entropy_coeff_decay * self.logger.buffer['interaction'], 0)
+            loss_actor = loss_pi + loss_entropy * updata_entropy_coff
+            self.optimizer_pi.zero_grad()
+            loss_actor.backward()
+            self.optimizer_pi.step()
+            logp_diff = torch.exp(batch_logp_new) * (batch_logp_new - self.get_logp(batch_state, batch_action) )
+            kl = logp_diff.mean()
+            self.logger.log(pi_loss=loss_pi, entropy=loss_entropy, kl_divergence = kl, entropy_coff=updata_entropy_coff ,pi_update=None)
+        self.logger.log(pi_update_step=i_pi)
+
+
         self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
         self.logger.log(agent_update_time=time.time()-time_t)
         return [r.mean().item(), loss_entropy.item()]
 
 
+class IC3Net(nn.ModuleList):
+    def __init__(self, logger, device, agent_args, **kwargs):
+        super().__init__()
+        self.logger = logger
+        self.device = device
+        self.n_agent = agent_args.n_agent
+        self.gamma = agent_args.gamma
+        self.lamda = agent_args.lamda
+        self.clip = agent_args.clip
+        self.target_kl = agent_args.target_kl
+        self.v_coeff = agent_args.v_coeff
+        self.v_thres = agent_args.v_thres
+        self.entropy_coeff = agent_args.entropy_coeff
+        self.lr = agent_args.lr
+        self.lr_v = agent_args.lr_v
+        self.n_update_v = agent_args.n_update_v
+        self.n_update_pi = agent_args.n_update_pi
+        self.n_minibatch = agent_args.n_minibatch
+        self.use_reduced_v = agent_args.use_reduced_v
+        self.use_rtg = agent_args.use_rtg
+        self.use_gae_returns = agent_args.use_gae_returns
+
+        self.advantage_norm = agent_args.advantage_norm
+
+        self.observation_dim = agent_args.observation_dim
+        self.action_space = agent_args.action_space
+        self.discrete = isinstance(agent_args.action_space, Discrete)
+        if self.discrete:
+            self.action_dim = self.action_space.n
+            self.action_shape = self.action_dim
+        else:
+            self.action_shape = self.action_space.shape
+            self.action_dim = 1
+            for j in self.action_shape:
+                self.action_dim *= j
+            self.action_low = self.action_space.low.item()
+            self.action_high = self.action_space.high.item()
+            self.squeeze = agent_args.squeeze
+        # if adj diag is not one, we should add a eye matrix
+        agent_args.adj = (torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float) > 0) | torch.eye(
+            self.n_agent, device=device).bool()
+        self.adj = torch.as_tensor(agent_args.adj, device=self.device, dtype=torch.float)
+        self.radius_v = agent_args.radius_v
+        self.radius_pi = agent_args.radius_pi
+        self.pi_args = agent_args.pi_args
+        self.v_args = agent_args.v_args
+        #self.collect_pi, self.actors = self._init_actors()
+        #self.collect_v, self.vs = self._init_vs()
+        self.hidden_dim = agent_args.v_args.hidden_dim
+
+
+        #TODO: init IC3Net structure
+        self.initNetwork()
+        self.optimizer = Adam([self.obs_encoder.parameters(), self.comm_gate_head.parameters(), self.message_models.parameters(), self.main_models.parameters(), self.value_heads.parameters(), self.action_heads.parameters()], lr=self.lr)
+        #self.optimizer_pi = Adam(self.actors.parameters(), lr=self.lr)
+
+    def initNetwork(self, agent_args):
+        # [one for all]observation encoding layer
+        self.obs_encoder = nn.Linear(self.observation_dim, self.hidden_dim)
+
+        # [1 v 1] communication gated action layer, first dim for comm, second dim for not
+        self.comm_gate_head = nn.ModuleList([nn.Linear(self.hidden_dim, 2) for i in range(self.n_agent)])
+
+        # [1 v 1] message fussion layer
+        self.message_models = nn.ModuleList([nn.Linear(self.hidden_dim, self.hidden_dim) for i in range(self.n_agent)])
+
+        # [1 v 1] main layer
+        self.main_models = nn.ModuleList([nn.Linear(self.hidden_dim, self.hidden_dim) for i in range(self.n_agent)])
+
+        # value head
+        self.value_heads = nn.ModuleList([nn.Linear(self.hidden_dim, 1) for i in range(self.n_agent)])
+
+        # action head
+        if self.discrete:
+            self.action_heads = nn.ModuleList([CategoricalActor(**self.pi_args._toDict()).to(self.device)])
+        else:
+            self.action_heads = nn.ModuleList([GaussianActor(action_dim=self.action_dim, **self.pi_args._toDict()).to(self.device)])
+
+        # activation function
+        self.activation_function = agent_args.v_args.activation
+
+
+    def updateAgent(self, trajs, clip=None):
+        pass
+
+    def act(self, s, requires_log=False):
+        """
+                Requires input of [batch_size, n_agent, dim] or [n_agent, dim].
+                This method is gradient-free. To get the gradient-enabled probability information, use get_logp().
+                Returns a distribution with the same dimensions of input.
+                """
+        with torch.no_grad():
+            dim = s.dim()
+            while s.dim() <= 2:
+                s = s.unsqueeze(0)
+            s = s.to(self.device)
+            s = self.collect_pi.gather(s)  # all state into [ self +  ]
+            # Now s[i].dim() == 2 ([batch_size, dim])
+
+            # encode the state
+            s_encoding = self.activation_function(self.obs_encoder(s))
+
+            # decide which agent to communication
+            # [batch_size, n_agent, 2]
+            # TODO: group inference
+            comm_gate_distirbution = self.comm_gate_head(s_encoding)
+            # TODO: check if need detach
+            comm_gate = torch.stack([torch.stack([torch.multinomial(dis, 1).detach() for dis in n_dis]) for n_dis in comm_gate_distirbution])
+
+            # merge the message by mean
+            comm_gate_tensor = comm_gate.unsqueeze(2).repeat(1,1,self.n_agent)
+            comm_gate_tensor_T = a.view(1, -1).expand_as(b).permute(0,2,1)
+            comm_gate = comm_gate_tensor * comm_gate_tensor_T
+            batch_comm_adj = self.adj.unsqueeze(0).repeat(comm_gate.shape[0],1,1) | comm_gate
+
+            batch_message_ls = []
+            for i in range(comm_gate.shape[0]):
+                # for each batch
+                comm_adj = batch_comm_adj.select(0,i)
+                single_s_encoding = s_encoding.select(0,i)
+
+                batch_message_ls.append(torch.mm(comm_adj, single_s_encoding))
+            batch_message = torch.stack(batch_message_ls, dim=0)
+
+
+            # deal with the meassage
+            # TODO: group inference
+            deal_message = self.message_models(batch_message)
+
+
+            # genarate hidden state
+            # TODO: group inference
+            hidden_state = s_encoding +  self.main_models(s_encoding) + deal_message
+
+
+            # cal the action
+            if self.discrete:
+                probs = []
+                for i in range(self.n_agent):
+                    probs.append(self.actors[i](hidden_state[i]))
+                probs = torch.stack(probs, dim=1)
+                return Categorical(probs)
+            else:
+                means, stds = [], []
+                for i in range(self.n_agent):
+                    mean, std = self.actors[i](hidden_state[i])
+                    means.append(mean)
+                    stds.append(std)
+                means = torch.stack(means, dim=1)
+                stds = torch.stack(stds, dim=1)
+                while means.dim() > dim:
+                    means = means.squeeze(0)
+                    stds = stds.squeeze(0)
+                return Normal(means, stds)
+
+    def get_logp(self, s, a):
+        pass
+
+    def _evalV(self, s):
+        # TODO：
+        # Requires input in shape [-1, n_agent, dim]
+        s = s.to(self.device)
+        s = self.collect_v.gather(s)
+        values = []
+        for i in range(self.n_agent):
+            values.append(self.vs[i](s[i]))
+        return torch.stack(values, dim=1)
+
+    def _process_traj(self, s, a, r, s1, d, logp):
+        """
+        Input are all in shape [batch_size, T, n_agent, dim]
+        """
+        with torch.no_grad():
+            b, T, n, dim_s = s.shape
+            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+            value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
+
+            returns = torch.zeros(value.size(), device=self.device)
+            deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
+            prev_value = self._evalV(s1.select(1, T - 1))
+            if not self.use_rtg:
+                prev_return = prev_value
+            else:
+                prev_return = torch.zeros_like(prev_value)
+            prev_advantage = torch.zeros_like(prev_return)
+            d_mask = d.float()
+            for t in reversed(range(T)):
+                deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
+                advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
+                if self.use_gae_returns:
+                    returns[:, t, :, :] = value.select(1, t).detach() + advantages.select(1, t)
+                else:
+                    returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1, t)) * prev_return
+
+                prev_return = returns.select(1, t)
+                prev_value = value.select(1, t)
+                prev_advantage = advantages.select(1, t)
+            reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
+            if self.advantage_norm and reduced_advantages.size()[1] > 1:
+                reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
+                advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
+        return value, returns, advantages, reduced_advantages
 
 class DPPOAgent(nn.ModuleList):
     """
@@ -789,10 +1009,17 @@ class DPPOAgent(nn.ModuleList):
 
         names = Trajectory.names()
         traj_all = {name:[] for name in names}
+        max_traj_length = max([i.length for i in trajs])
         for traj in trajs:
             for name in names:
-                traj_all[name].append(traj[name])
+                tensor_shape = traj[name].shape
+                full_part_shape = [max_traj_length - tensor_shape[0]] + list(tensor_shape[1:])
+                if name == 'd':
+                    traj_all[name].append(torch.cat([traj[name], torch.ones(full_part_shape, dtype=torch.bool)], dim=0))
+                else:
+                    traj_all[name].append(torch.cat([traj[name], torch.zeros(full_part_shape, dtype=traj[name].dtype)], dim=0))
         traj = {name:torch.stack(value, dim=0) for name, value in traj_all.items()}
+
 
         s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
         s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
@@ -828,7 +1055,7 @@ class DPPOAgent(nn.ModuleList):
             surr2 = ratio.clamp(1 - clip, 1 + clip) * batch_advantages_old
             loss_surr = torch.min(surr1, surr2).mean()
             loss_entropy = - torch.mean(batch_logp_new)
-            loss_pi = - loss_surr - self.entropy_coeff * loss_entropy
+            loss_pi = - loss_surr -  self.entropy_coeff * loss_entropy
             self.optimizer_pi.zero_grad()
             loss_pi.backward()
             self.optimizer_pi.step()
@@ -1006,6 +1233,8 @@ class ModelBasedAgent(nn.ModuleList):
     def load_model(self, pretrained_model):
         dic = torch.load(pretrained_model)
         self.load_state_dict(dic[''])
+
+
 
 class HiddenAgent(ModelBasedAgent):
     def __init__(self, logger, device, agent_args, **kwargs):

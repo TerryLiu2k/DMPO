@@ -1,23 +1,31 @@
 from logging import log
 import os
 from re import T
+import importlib
 import ray
 import time
 import warnings
-from algorithms.utils import Config, LogClient, LogServer
+import json
+from algorithms.utils import Config, LogClient, LogServer, mem_report
 from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedFlowGridFn
 from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
 from algorithms.envs.Ring import makeRingAttenuation
 from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
-from algorithms.config.Eight_IA2C import getArgs as getArgs_eight_IA2C
-from algorithms.config.Eight_IA2C import getArgs as getArgs_ring_IA2C
-from algorithms.config.Catchup_IA2C import getArgs as getArgs_catchup_IA2C
-from algorithms.config.Slowdown_IA2C import getArgs as getArgs_slowdown_IA2C
+
+## Config
+#from algorithms.config.Eight_IA2C import getArgs as getArgs_eight_IA2C
+#from algorithms.config.Eight_IA2C import getArgs as getArgs_ring_IA2C
+#from algorithms.config.Catchup_IA2C import getArgs as getArgs_catchup_IA2C
+#from algorithms.config.Slowdown_IA2C import getArgs as getArgs_slowdown_IA2C
+# which is emputy
+
+## Agent
+# from algorithms.mbdppo.MB_DPPO import IA2C as agent_fn
+#from algorithms.mbdppo.MB_DPPO import IC3Net as agent_fn
+# from algorithms.mbdppo.MB_DPPO import DPPOAgent
 
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
-from algorithms.mbdppo.MB_DPPO import IA2C as agent_fn
-from algorithms.mbdppo.MB_DPPO import DPPOAgent
-from
+
 
 import torch
 import argparse
@@ -26,14 +34,14 @@ warnings.filterwarnings('ignore')
 
 def getEnvArgs():
     env_args = Config()
-    env_args.n_env = 10
-    env_args.n_cpu = 10 # per environment
+    env_args.n_env = 1
+    env_args.n_cpu = 1 # per environment
     env_args.n_gpu = 0
     return env_args
 
-def getRunArgs():
+def getRunArgs(input_args):
     run_args = Config()
-    run_args.n_thread = 10
+    run_args.n_thread = 1
     run_args.parallel = False
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
@@ -41,7 +49,7 @@ def getRunArgs():
     run_args.debug = False
     run_args.test = False
     run_args.profiling = False
-    run_args.name = 'standard'
+    run_args.name = f'standard{input_args.name}'
     run_args.radius_v = 3
     run_args.radius_pi = 1
     run_args.radius_p = 1
@@ -54,23 +62,28 @@ def getRunArgs():
 
 def initArgs(run_args, env_train, env_test, input_arg):
     ref_env = env_train
-    # TODO: should also consider algo
-    if input_arg.env == 'eight':
-        alg_args = getArgs_eight_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
-    elif input_arg.env == 'ring':
-        alg_args = getArgs_ring_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
-    elif input_arg.env == 'catchup':
+
+    if input_arg.env in ['eight', 'ring', 'catchup', 'slowdown'] or input_arg.algo in ['CPPO', 'DMPPO', 'IC3Net', 'IA2C']:
+        env_str = input_arg.env[0].upper() + input_arg.env[1:]
+        config = importlib.import_module(f"algorithms.config.{env_str}_{input_args.algo}")
+
+    if input_arg.env in ['catchup', 'slowdown']:
         run_args.radius_v = 2
         run_args.radius_pi = 1
         run_args.radius_p = 1
-        alg_args = getArgs_catchup_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
-    elif input_arg.env == 'slowdown':
-        run_args.radius_v = 2
+
+    if input_arg.algo in ['CPPO']:
+        run_args.radius_v = env_train.n_agent # n_agent
         run_args.radius_pi = 1
         run_args.radius_p = 1
-        alg_args = getArgs_slowdown_IA2C(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
-    else:
-        alg_args = None
+    '''
+    if input_arg.algo in ['IA2C']:
+        run_args.radius_v = 1 # n_agent
+        run_args.radius_pi = 1
+        run_args.radius_p = 1
+    '''
+
+    alg_args = config.getArgs(run_args.radius_p, run_args.radius_v, run_args.radius_pi, ref_env)
     return alg_args
 
 def initAgent(logger, device, agent_args):
@@ -89,7 +102,7 @@ def initEnv(input_args):
         env_fn_train, env_fn_test = None
     return env_fn_train, env_fn_test
 
-def override(alg_args, run_args, env_fn_train):
+def override(alg_args, run_args, env_fn_train, input_args):
     alg_args.env_fn = env_fn_train
     agent_args = alg_args.agent_args
     p_args, v_args, pi_args = agent_args.p_args, agent_args.v_args, agent_args.pi_args
@@ -125,14 +138,26 @@ def override(alg_args, run_args, env_fn_train):
     if run_args.seed is None:
         run_args.seed = int(time.time()*1000)%65536
     agent_args.parallel = run_args.parallel
+    agent_args.lable_name=input_args.algo+input_args.name
+    ## update the parameter from the input arg
+    for key in input_args.para:
+        key_ls = key.split('.')
+        *pre_key_ls, key_last = key_ls
+        target_args = alg_args
+        for pre_key in pre_key_ls:
+            target_args = target_args.__dict__[pre_key]
+        target_args.__dict__[key_last] = input_args.para[key]
     run_args.name = '{}_{}_{}_{}'.format(run_args.name, env_fn_train.__name__, agent_fn.__name__, run_args.seed)
     return alg_args, run_args
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, required=False, default='catchup', help="environment(eight/ring/catchup/slowdown)")
-    parser.add_argument('--algo', type=str, required=False, default='IA2C', help="algorithm(DMPPO/IA2C/IC3NET) ")
+    parser.add_argument('--algo', type=str, required=False, default='IA2C', help="algorithm(DMPPO/IA2C/IC3NET/CPPO) ")
+    parser.add_argument('--name', type=str, required=False, default='', help="the additional name for logger")
+    parser.add_argument('--para', type=str, required=False, default='{}', help="the hyperparameter json string" )
     args = parser.parse_args()
+    args.para = json.loads(args.para.replace('\'', '\"'))
     '''
     if not args.option:
         parser.print_help()
@@ -144,13 +169,21 @@ def parse_args():
 # get arg from cli
 input_args = parse_args()
 
+# import agent [must put here, if in a function, import will become local]
+if input_args.algo == 'IA2C':
+    from algorithms.mbdppo.MB_DPPO import IA2C as agent_fn
+elif input_args.algo == 'IC3Net':
+    from algorithms.mbdppo.MB_DPPO import IC3Net as agent_fn
+elif input_args.algo in ['CPPO', 'DMPPO']:
+    from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
+
 env_args = getEnvArgs()
 env_fn_train, env_fn_test = initEnv(input_args)
 env_train = env_fn_train()
 env_test = env_fn_test()
-run_args = getRunArgs()
+run_args = getRunArgs(input_args)
 alg_args = initArgs(run_args, env_train, env_test, input_args)
-alg_args, run_args = override(alg_args, run_args, env_fn_train)
+alg_args, run_args = override(alg_args, run_args, env_fn_train, input_args)
 
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 #ray.init(ignore_reinit_error = True, num_gpus=len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')))

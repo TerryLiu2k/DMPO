@@ -39,12 +39,11 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.target_kl = 7.5e-3
     agent_args.v_coeff = 1.0
     agent_args.v_thres = 0.
-    agent_args.entropy_coeff = 0.03
-    agent_args.entropy_coeff_decay = agent_args.entropy_coeff / 5e5   # only in IA2C
+    agent_args.entropy_coeff = 0.0
     agent_args.lr = 5e-5
-    agent_args.lr_v = 5e-5
+    agent_args.lr_v = 5e-4
     agent_args.lr_p = 5e-4  # since update time is lower
-    agent_args.n_update_v = 15
+    agent_args.n_update_v = 20
     agent_args.n_update_pi = 1
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = False  # just use advantage rather than the reduced

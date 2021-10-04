@@ -41,8 +41,8 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
     agent_args.entropy_coeff_decay = 0.0  # only in IA2C
-    agent_args.lr = 5e-3
-    agent_args.lr_v = 5e-4
+    agent_args.lr = 5e-5
+    agent_args.lr_v = 5e-5
     agent_args.lr_p = 5e-4 * 5 # since update time is lower
     agent_args.n_update_v = 15
     agent_args.n_update_pi = 1
@@ -77,6 +77,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     v_args.network = MLP
     v_args.activation = torch.nn.ReLU
     v_args.sizes = [-1, 64, 64, 1]
+    v_args.hidden_dim = 64
     agent_args.v_args = v_args
 
     pi_args = Config()
