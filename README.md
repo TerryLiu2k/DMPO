@@ -1,5 +1,3 @@
-Author: Hangrui (Henry) Bi
-
 Algorithms:
 1. DMPPO
 2. DPPO
