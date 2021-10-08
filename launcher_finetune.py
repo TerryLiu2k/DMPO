@@ -1,10 +1,10 @@
 import os
 
-mode = 'final'  # 'final' or 'finetune'
+mode = 'finetune'  # 'final' or 'finetune'
 
-env_ls = [ 'eight', 'ring' ] #'catchup','slowdown'
+env_ls = [ 'slowdown' ] #'catchup', 'eight'
 algo_ls = ['IC3Net']
-name = '[finetune]'
+name = '[finetune-4]'
 
 if mode == 'final':
     seed_number = 5
@@ -27,14 +27,16 @@ elif mode == 'finetune':
     tune_ls = {'ring': ['\'{\\\"agent_args.lr_v\\\":3e-3}\'',
                         '\'{\\\"agent_args.lr\\\":2e-3,\\\"agent_args.lr_v\\\":2e-3}\'',
                         '\'{\\\"agent_args.lr\\\":5e-3,\\\"agent_args.lr_v\\\":6e-3}\''],
-               'eight': ['\'{\\\"agent_args.lr\\\":5e-4,\\\"agent_args.lr_v\\\":5e-4}\'',
-                         '\'{\\\"agent_args.lr\\\":5e-4,\\\"agent_args.lr_v\\\":5e-4}\'',
-                         '\'{\\\"agent_args.lr\\\":5e-4,\\\"agent_args.lr_v\\\":5e-4}\''],
+               'eight': ['\'{\\\"agent_args.lr_v\\\":1e-2,\\\"agent_args.lr_p\\\":1e-2}\'',
+                         '\'{\\\"agent_args.lr_v\\\":1e-2,\\\"agent_args.lr_p\\\":1e-3}\'',
+                         '\'{\\\"agent_args.lr_v\\\":1e-3,\\\"agent_args.lr_p\\\":1e-3}\''],
                'catchup': ['{}',
                            '\'{\\\"agent_args.lr\\\":5e-4,\\\"agent_args.lr_v\\\":5e-4}\'',
                            '\'{\\\"agent_args.lr\\\":5e-3,\\\"agent_args.lr_v\\\":5e-3}\'',
                            '\'{\\\"agent_args.lr\\\":5e-5,\\\"agent_args.lr_v\\\":5e-4}\''],
-               'slowdown': ['\'{\\\"agent_args.lr\\\":1e-3,\\\"agent_args.lr_v\\\":5e-4}\''],
+               'slowdown': ['\'{\\\"agent_args.lr_v\\\":1e-2,\\\"agent_args.lr_p\\\":1e-2}\'',
+                         '\'{\\\"agent_args.lr_v\\\":1e-2,\\\"agent_args.lr_p\\\":1e-3}\'',
+                         '\'{\\\"agent_args.lr_v\\\":1e-3,\\\"agent_args.lr_p\\\":1e-3}\''],
 
                }
     for algo in algo_ls:
