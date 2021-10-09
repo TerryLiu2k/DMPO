@@ -34,8 +34,8 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.v_coeff = 1.0
     agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
-    agent_args.lr = 5e-5
-    agent_args.lr_v = 5e-4
+    agent_args.lr = 1e-3
+    agent_args.lr_v = 1e-3
     agent_args.n_update_v = 30
     agent_args.n_update_pi = 10
     agent_args.n_minibatch = 1

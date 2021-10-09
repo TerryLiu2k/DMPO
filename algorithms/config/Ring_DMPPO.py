@@ -11,7 +11,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.n_iter = 25000
     alg_args.n_inner_iter = 10
     alg_args.n_warmup = 50
-    alg_args.n_model_update = int(1e4)
+    alg_args.n_model_update = int(2e3)
     alg_args.n_model_update_warmup = int(2e4)
     alg_args.n_test = 5
     alg_args.model_validate_interval = 10
@@ -23,11 +23,13 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.load_pretrained_model = True
     alg_args.pretrained_model = 'checkpoints/standard_makeRingAttenuation_MB_DPPOAgent_62746/164849_-5997.291270560293.pt'
     alg_args.n_traj = 2048
-    alg_args.model_traj_length = 12
-    alg_args.model_error_thres = 0.
-    alg_args.model_batch_size = 128
+    alg_args.model_traj_length = 25
+    alg_args.model_error_thres = 2e-4
+    alg_args.model_prob = 0.5
+    alg_args.model_batch_size = 256
     alg_args.model_buffer_size = 15
     alg_args.model_update_length = 4
+    alg_args.model_length_schedule = None
 
     agent_args = Config()
     agent_args.adj = env.neighbor_mask
@@ -39,15 +41,15 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.v_coeff = 1.0
     agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
-    agent_args.lr = 5e-5
+    agent_args.lr = 5e-4
     agent_args.lr_v = 5e-4
     agent_args.lr_p = 5e-4
     agent_args.n_update_v = 15
-    agent_args.n_update_pi = 3
+    agent_args.n_update_pi = 10
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = False
-    agent_args.use_gae_returns = True
+    agent_args.use_gae_returns = False
     agent_args.advantage_norm = True
     agent_args.observation_space = env.observation_space
     agent_args.hidden_state_dim = 8

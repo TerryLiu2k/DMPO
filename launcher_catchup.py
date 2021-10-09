@@ -6,9 +6,9 @@ import time
 import warnings
 from algorithms.utils import Config, LogClient, LogServer
 from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
-from algorithms.config.Catchup_PPO import getArgs
+from algorithms.config.Catchup_DMPPO import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
-from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
+from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
 import torch
 
 warnings.filterwarnings('ignore')
@@ -27,11 +27,11 @@ def getRunArgs():
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
     run_args.n_gpu = 0
-    run_args.debug = True
+    run_args.debug = False
     run_args.test = False
     run_args.profiling = False
     run_args.name = 'standard'
-    run_args.radius_v = 3
+    run_args.radius_v = 2
     run_args.radius_pi = 1
     run_args.radius_p = 1
     run_args.init_checkpoint = None
