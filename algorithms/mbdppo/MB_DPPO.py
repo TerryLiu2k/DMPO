@@ -142,7 +142,7 @@ class TrajectoryBuffer:
         self.d.append(d)
         self.logp.append(logp)
     
-    def retrieve(self):
+    def retrieve(self, length=None):
         """
         Returns trajectories with s, a, r, s1, d, logp.
         Data are of size [T, n_agent, dim]
@@ -229,6 +229,7 @@ class OnPolicyRunner:
             self.model_update_length = alg_args.model_update_length
             self.model_validate_interval = alg_args.model_validate_interval
             self.model_length_schedule = alg_args.model_length_schedule
+            self.model_prob = alg_args.model_prob
         self.s, self.episode_len, self.episode_reward = self.env_learn.reset(), 0, 0
 
         # load pretrained model
@@ -251,12 +252,17 @@ class OnPolicyRunner:
                 self.model_buffer.storeTrajs(trajs)
                 self.updateModel()
             agentInfo = []
+            real_trajs = trajs
             for inner in trange(self.n_inner_iter):
                 if self.model_based:
-                    if self.model_length_schedule is not None:
-                        trajs = self.rollout_model(trajs, self.model_length_schedule(iter))
+                    use_model = np.random.uniform() < self.model_prob
+                    if use_model:
+                        if self.model_length_schedule is not None:
+                            trajs = self.rollout_model(real_trajs, self.model_length_schedule(iter))
+                        else:
+                            trajs = self.rollout_model(real_trajs)
                     else:
-                        trajs = self.rollout_model(trajs)
+                        trajs = trajs
                 if self.clip_scheme is not None:
                     info = self.agent.updateAgent(trajs, self.clip_scheme(iter))
                 else:
@@ -345,12 +351,13 @@ class OnPolicyRunner:
             if self.episode_len == self.max_episode_len:
                 d = np.zeros(d.shape, dtype=np.float32)
             d = np.array(d)
-            if d.any() or (self.episode_len == self.max_episode_len):
+            #if d.any() or (self.episode_len == self.max_episode_len):
+            if self.episode_len == self.max_episode_len:
                 self.logger.log(episode_reward=self.episode_reward.sum(), episode_len = self.episode_len, episode=None)
                 _, self.episode_reward, self.episode_len = self.env_learn.reset(), 0, 0
                 trajs += traj.retrieve()
                 traj = TrajectoryBuffer(device=self.device)
-        trajs += traj.retrieve()
+        trajs += traj.retrieve(length=self.max_episode_len)
         self.logger.log(env_rollout_time=time.time()-time_t)
         return trajs
     
@@ -473,6 +480,8 @@ class DPPOAgent(nn.ModuleList):
                 for i in range(self.n_agent):
                     probs.append(self.actors[i](s[i]))
                 probs = torch.stack(probs, dim=1)
+                while probs.dim() > dim:
+                    probs = probs.squeeze(0)
                 return Categorical(probs)
             else:
                 means, stds = [], []
@@ -526,68 +535,69 @@ class DPPOAgent(nn.ModuleList):
                 traj_all[name].append(traj[name])
         traj = {name:torch.stack(value, dim=0) for name, value in traj_all.items()}
 
-        s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
-        s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
-        # all in shape [batch_size, T, n_agent, dim]
-        value_old, returns, advantages, reduced_advantages = self._process_traj(**traj)
+        for i_update in range(self.n_update_pi):
+            s, a, r, s1, d, logp = traj['s'], traj['a'], traj['r'], traj['s1'], traj['d'], traj['logp']
+            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+            # all in shape [batch_size, T, n_agent, dim]
+            value_old, returns, advantages, reduced_advantages = self._process_traj(**traj)
 
-        advantages_old = reduced_advantages if self.use_reduced_v else advantages
+            advantages_old = reduced_advantages if self.use_reduced_v else advantages
 
-        b, T, n, d_s = s.size()
-        d_a = a.size()[-1]
-        s = s.view(-1, n, d_s)
-        a = a.view(-1, n, d_a)
-        logp = logp.view(-1, n, 1)
-        advantages_old = advantages_old.view(-1, n, 1)
-        returns = returns.view(-1, n, 1)
-        value_old = value_old.view(-1, n, 1)
-        # s, a, logp, adv, ret, v are now all in shape [-1, n_agent, dim]
+            b, T, n, d_s = s.size()
+            d_a = a.size()[-1]
+            s = s.view(-1, n, d_s)
+            a = a.view(-1, n, d_a)
+            logp = logp.view(-1, n, 1)
+            advantages_old = advantages_old.view(-1, n, 1)
+            returns = returns.view(-1, n, 1)
+            value_old = value_old.view(-1, n, 1)
+            # s, a, logp, adv, ret, v are now all in shape [-1, n_agent, dim]
 
-        batch_total = logp.size()[0]
-        batch_size = int(batch_total/n_minibatch)
-        kl_all = []
-        i_pi = 0
-        for i_pi in range(self.n_update_pi):
-            batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
-            if n_minibatch > 1:
-                idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
-                [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
-            batch_logp_new = self.get_logp(batch_state, batch_action)
-            logp_diff = batch_logp_new - batch_logp
-            kl = logp_diff.mean()
-            ratio = torch.exp(batch_logp_new - batch_logp)
-            surr1 = ratio * batch_advantages_old
-            surr2 = ratio.clamp(1 - clip, 1 + clip) * batch_advantages_old
-            loss_surr = torch.min(surr1, surr2).mean()
-            loss_entropy = - torch.mean(batch_logp_new)
-            loss_pi = - loss_surr - self.entropy_coeff * loss_entropy
-            self.optimizer_pi.zero_grad()
-            loss_pi.backward()
-            self.optimizer_pi.step()
-            self.logger.log(surr_loss = loss_surr, entropy = loss_entropy, kl_divergence = kl, pi_update=None)
-            kl_all.append(kl.abs().item())
-            if self.target_kl is not None and kl.abs() > 1.5 * self.target_kl:
-                break
-        self.logger.log(pi_update_step=i_pi)
+            batch_total = logp.size()[0]
+            batch_size = int(batch_total/n_minibatch)
+            kl_all = []
+            i_pi = 0
+            for i_pi in range(1):
+                batch_state, batch_action, batch_logp, batch_advantages_old = [s, a, logp, advantages_old]
+                if n_minibatch > 1:
+                    idxs = np.random.choice(range(batch_total), size=batch_size, replace=False)
+                    [batch_state, batch_action, batch_logp, batch_advantages_old] = [item[idxs] for item in [batch_state, batch_action, batch_logp, batch_advantages_old]]
+                batch_logp_new = self.get_logp(batch_state, batch_action)
+                logp_diff = batch_logp_new - batch_logp
+                kl = logp_diff.mean()
+                ratio = torch.exp(batch_logp_new - batch_logp)
+                surr1 = ratio * batch_advantages_old
+                surr2 = ratio.clamp(1 - clip, 1 + clip) * batch_advantages_old
+                loss_surr = torch.min(surr1, surr2).mean()
+                loss_entropy = - torch.mean(batch_logp_new)
+                loss_pi = - loss_surr - self.entropy_coeff * loss_entropy
+                self.optimizer_pi.zero_grad()
+                loss_pi.backward()
+                self.optimizer_pi.step()
+                self.logger.log(surr_loss = loss_surr, entropy = loss_entropy, kl_divergence = kl, pi_update=None)
+                kl_all.append(kl.abs().item())
+                if self.target_kl is not None and kl.abs() > 1.5 * self.target_kl:
+                    break
+            self.logger.log(pi_update_step=i_update)
 
-        for i_v in range(self.n_update_v):
-            batch_returns = returns
-            batch_state = s
-            if n_minibatch > 1:
-                idxs = np.random.randint(0, len(batch_total), size=batch_size)
-                [batch_returns, batch_state] = [item[idxs] for item in [batch_returns, batch_state]]
-            batch_v_new = self._evalV(batch_state)
-            loss_v = ((batch_v_new - batch_returns) ** 2).mean()
-            self.optimizer_v.zero_grad()
-            loss_v.backward()
-            self.optimizer_v.step()
-            var_v = ((batch_returns - batch_returns.mean()) ** 2).mean()
-            rel_v_loss = loss_v / (var_v + 1e-8)
-            self.logger.log(v_loss=loss_v, v_update=None, v_var=var_v, rel_v_loss=rel_v_loss)
-            if rel_v_loss < self.v_thres:
-                break
-        self.logger.log(v_update_step=i_v)
-        self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
+            for i_v in range(1):
+                batch_returns = returns
+                batch_state = s
+                if n_minibatch > 1:
+                    idxs = np.random.randint(0, len(batch_total), size=batch_size)
+                    [batch_returns, batch_state] = [item[idxs] for item in [batch_returns, batch_state]]
+                batch_v_new = self._evalV(batch_state)
+                loss_v = ((batch_v_new - batch_returns) ** 2).mean()
+                self.optimizer_v.zero_grad()
+                loss_v.backward()
+                self.optimizer_v.step()
+                var_v = ((batch_returns - batch_returns.mean()) ** 2).mean()
+                rel_v_loss = loss_v / (var_v + 1e-8)
+                self.logger.log(v_loss=loss_v, v_update=None, v_var=var_v, rel_v_loss=rel_v_loss)
+                if rel_v_loss < self.v_thres:
+                    break
+            self.logger.log(v_update_step=i_update)
+            self.logger.log(update=None, reward=r, value=value_old, clip=clip, returns=returns, advantages=advantages_old.abs())
         self.logger.log(agent_update_time=time.time()-time_t)
         return [r.mean().item(), loss_entropy.item(), max(kl_all)]
     
@@ -633,36 +643,35 @@ class DPPOAgent(nn.ModuleList):
         """
         Input are all in shape [batch_size, T, n_agent, dim]
         """
-        with torch.no_grad():
-            b, T, n, dim_s = s.shape
-            s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
-            value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
+        b, T, n, dim_s = s.shape
+        s, a, r, s1, d, logp = [item.to(self.device) for item in [s, a, r, s1, d, logp]]
+        value = self._evalV(s.view(-1, n, dim_s)).view(b, T, n, -1)
 
-            returns = torch.zeros(value.size(), device=self.device)
-            deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
-            prev_value = self._evalV(s1.select(1, T - 1))
-            if not self.use_rtg:
-                prev_return = prev_value
+        returns = torch.zeros(value.size(), device=self.device)
+        deltas, advantages = torch.zeros_like(returns), torch.zeros_like(returns)
+        prev_value = self._evalV(s1.select(1, T - 1))
+        if not self.use_rtg:
+            prev_return = prev_value
+        else:
+            prev_return = torch.zeros_like(prev_value)
+        prev_advantage = torch.zeros_like(prev_return)
+        d_mask = d.float()
+        for t in reversed(range(T)):
+            deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
+            advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
+            if self.use_gae_returns:
+                returns[:, t, :, :] = value.select(1, t).detach() + advantages.select(1, t)
             else:
-                prev_return = torch.zeros_like(prev_value)
-            prev_advantage = torch.zeros_like(prev_return)
-            d_mask = d.float()
-            for t in reversed(range(T)):
-                deltas[:, t, :, :]= r.select(1, t) + self.gamma * (1-d_mask.select(1,t)) * prev_value - value.select(1, t).detach()
-                advantages[:, t, :, :] = deltas.select(1, t) + self.gamma * self.lamda * (1-d_mask.select(1,t)) * prev_advantage
-                if self.use_gae_returns:
-                    returns[:, t, :, :] = value.select(1, t).detach() + advantages.select(1, t)
-                else:
-                    returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1, t)) * prev_return
+                returns[:, t, :, :] = r.select(1, t) + self.gamma * (1-d_mask.select(1, t)) * prev_return
 
-                prev_return = returns.select(1, t)
-                prev_value = value.select(1, t)
-                prev_advantage = advantages.select(1, t)
-            reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
-            if self.advantage_norm and reduced_advantages.size()[1] > 1:
-                reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
-                advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
-        return value, returns, advantages, reduced_advantages
+            prev_return = returns.select(1, t)
+            prev_value = value.select(1, t)
+            prev_advantage = advantages.select(1, t)
+        reduced_advantages = self.collect_v.reduce_sum(advantages.view(-1, n, 1)).view(advantages.size())
+        if self.advantage_norm and reduced_advantages.size()[1] > 1:
+            reduced_advantages = (reduced_advantages - reduced_advantages.mean(dim=1, keepdim=True)) / (reduced_advantages.std(dim=1, keepdim=True) + 1e-5)
+            advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / (advantages.std(dim=1, keepdim=True) + 1e-5)
+        return value.detach(), returns, advantages.detach(), reduced_advantages.detach()
 
 class ModelBasedAgent(nn.ModuleList):
     def __init__(self, logger, device, agent_args, **kwargs):
@@ -695,7 +704,7 @@ class ModelBasedAgent(nn.ModuleList):
         loss, rel_state_error = self.ps.train(ss, actions, rs, s1s, ds, length) # [n_traj, T, n_agent, dim]
         self.optimizer_p.zero_grad()
         loss.sum().backward()
-        torch.nn.utils.clip_grad_norm_(parameters=self.ps.parameters(), max_norm=5, norm_type=2)
+        # torch.nn.utils.clip_grad_norm_(parameters=self.ps.parameters(), max_norm=5, norm_type=2)
         self.optimizer_p.step()
         self.logger.log(p_loss_total=loss.sum(), p_update=None)
         self.logger.log(model_update_time=time.time()-time_t)

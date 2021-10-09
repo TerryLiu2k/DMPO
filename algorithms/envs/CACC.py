@@ -21,6 +21,7 @@ class CACCWrapper(gym.Wrapper):
         self.action_space = Discrete(4)
         self.bias=bias
         self.std=std
+        env.neighbor_mask += np.eye(env.n_agent, dtype=env.neighbor_mask.dtype)
     
     def ifCollide(self):
         ob = self.state
@@ -69,6 +70,9 @@ class CACCWrapper(gym.Wrapper):
         return state, np.clip(reward, -5, 5), done, None
 
     def get_state(self):
+        return self.state
+
+    def get_state_(self):
         return self.state
 
 

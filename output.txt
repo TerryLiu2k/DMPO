@@ -1,0 +1,741 @@
+Tue Sep 28 16:43:55 2021    devicecuda:0_parallelFalse.profile
+
+         2201446 function calls (2065854 primitive calls) in 39.659 seconds
+
+   Ordered by: cumulative time
+   List reduced from 737 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      2/1    0.005    0.002   39.659   39.659 {built-in method builtins.exec}
+        1    0.004    0.004   39.654   39.654 <string>:1(<module>)
+        1    0.002    0.002   38.176   38.176 MB_DPPO.py:239(run)
+        1    0.087    0.087   31.336   31.336 MB_DPPO.py:383(updateModel)
+       50    0.257    0.005   28.750    0.575 MB_DPPO.py:677(updateModel)
+106927/8857    1.798    0.000   13.995    0.002 module.py:522(__call__)
+       55    0.047    0.001   13.575    0.247 models.py:444(train)
+      245    0.227    0.001   13.500    0.055 models.py:490(forward)
+       67    0.001    0.000    9.776    0.146 tensor.py:167(backward)
+       67    0.005    0.000    9.775    0.146 __init__.py:44(backward)
+    21322    1.054    0.000    9.770    0.000 container.py:98(forward)
+       67    9.766    0.146    9.766    0.146 {method 'run_backward' of 'torch._C._EngineBase' objects}
+       67    1.460    0.022    6.520    0.097 adam.py:49(step)
+    37030    0.879    0.000    5.274    0.000 linear.py:86(forward)
+      980    0.593    0.001    5.180    0.005 models.py:400(forward)
+    37030    0.244    0.000    4.230    0.000 functional.py:1355(linear)
+     3430    0.713    0.000    4.176    0.001 models.py:375(forward)
+        1    0.109    0.109    3.774    3.774 MB_DPPO.py:516(updateAgent)
+     3430    0.127    0.000    3.529    0.001 models.py:349(forward)
+      301    0.056    0.000    3.306    0.011 utils.py:302(log)
+    37030    3.291    0.000    3.291    0.000 {built-in method addmm}
+     1378    3.183    0.002    3.183    0.002 {method 'cpu' of 'torch._C._TensorBase' objects}
+        1    0.002    0.002    1.941    1.941 MB_DPPO.py:357(rollout_model)
+    22064    0.168    0.000    1.591    0.000 activation.py:93(forward)
+        1    0.001    0.001    1.475    1.475 MB_DPPO.py:190(__init__)
+    31024    1.424    0.000    1.424    0.000 {method 'add_' of 'torch._C._TensorBase' objects}
+    22064    0.070    0.000    1.423    0.000 functional.py:904(relu)
+    22064    1.353    0.000    1.353    0.000 {built-in method relu}
+        1    0.000    0.000    1.333    1.333 MB_DPPO.py:738(load_model)
+    31024    1.307    0.000    1.307    0.000 {method 'mul_' of 'torch._C._TensorBase' objects}
+       25    0.001    0.000    1.300    0.052 MB_DPPO.py:719(model_step)
+       25    0.002    0.000    1.298    0.052 models.py:430(predict)
+        5    0.028    0.006    1.210    0.242 MB_DPPO.py:704(validateModel)
+        1    0.000    0.000    1.182    1.182 module.py:779(load_state_dict)
+    646/1    0.008    0.000    1.182    1.182 module.py:807(load)
+      646    0.548    0.001    1.174    0.002 module.py:703(_load_from_state_dict)
+    15512    0.777    0.000    0.777    0.000 {method 'sqrt' of 'torch._C._TensorBase' objects}
+     6885    0.756    0.000    0.756    0.000 {built-in method cat}
+    15512    0.747    0.000    0.747    0.000 {method 'addcdiv_' of 'torch._C._TensorBase' objects}
+     7040    0.169    0.000    0.741    0.000 MB_DPPO.py:94(getFraction)
+       50    0.037    0.001    0.733    0.015 MB_DPPO.py:388(<listcomp>)
+    24564    0.711    0.000    0.711    0.000 {method 'select' of 'torch._C._TensorBase' objects}
+       34    0.017    0.001    0.703    0.021 MB_DPPO.py:457(act)
+        1    0.006    0.006    0.680    0.680 MB_DPPO.py:318(rollout_env)
+    37030    0.676    0.000    0.676    0.000 {method 't' of 'torch._C._TensorBase' objects}
+      504    0.030    0.000    0.659    0.001 models.py:690(forward)
+    15512    0.645    0.000    0.645    0.000 {method 'addcmul_' of 'torch._C._TensorBase' objects}
+      490    0.505    0.001    0.505    0.001 {method 'copy_' of 'torch._C._TensorBase' objects}
+    17892    0.143    0.000    0.502    0.000 container.py:142(__getitem__)
+       57    0.001    0.000    0.487    0.009 std.py:1164(__iter__)
+
+
+Tue Sep 28 16:43:55 2021    devicecuda:0_parallelFalse.profile
+
+         2201446 function calls (2065854 primitive calls) in 39.659 seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      2/1    0.005    0.002   39.659   39.659 {built-in method builtins.exec}
+        1    0.004    0.004   39.654   39.654 <string>:1(<module>)
+        1    0.002    0.002   38.176   38.176 MB_DPPO.py:239(run)
+        1    0.087    0.087   31.336   31.336 MB_DPPO.py:383(updateModel)
+       50    0.257    0.005   28.750    0.575 MB_DPPO.py:677(updateModel)
+106927/8857    1.798    0.000   13.995    0.002 module.py:522(__call__)
+       55    0.047    0.001   13.575    0.247 models.py:444(train)
+      245    0.227    0.001   13.500    0.055 models.py:490(forward)
+       67    0.001    0.000    9.776    0.146 tensor.py:167(backward)
+       67    0.005    0.000    9.775    0.146 __init__.py:44(backward)
+    21322    1.054    0.000    9.770    0.000 container.py:98(forward)
+       67    9.766    0.146    9.766    0.146 {method 'run_backward' of 'torch._C._EngineBase' objects}
+       67    1.460    0.022    6.520    0.097 adam.py:49(step)
+    37030    0.879    0.000    5.274    0.000 linear.py:86(forward)
+      980    0.593    0.001    5.180    0.005 models.py:400(forward)
+    37030    0.244    0.000    4.230    0.000 functional.py:1355(linear)
+     3430    0.713    0.000    4.176    0.001 models.py:375(forward)
+        1    0.109    0.109    3.774    3.774 MB_DPPO.py:516(updateAgent)
+     3430    0.127    0.000    3.529    0.001 models.py:349(forward)
+      301    0.056    0.000    3.306    0.011 utils.py:302(log)
+    37030    3.291    0.000    3.291    0.000 {built-in method addmm}
+     1378    3.183    0.002    3.183    0.002 {method 'cpu' of 'torch._C._TensorBase' objects}
+        1    0.002    0.002    1.941    1.941 MB_DPPO.py:357(rollout_model)
+    22064    0.168    0.000    1.591    0.000 activation.py:93(forward)
+        1    0.001    0.001    1.475    1.475 MB_DPPO.py:190(__init__)
+    31024    1.424    0.000    1.424    0.000 {method 'add_' of 'torch._C._TensorBase' objects}
+    22064    0.070    0.000    1.423    0.000 functional.py:904(relu)
+    22064    1.353    0.000    1.353    0.000 {built-in method relu}
+        1    0.000    0.000    1.333    1.333 MB_DPPO.py:738(load_model)
+    31024    1.307    0.000    1.307    0.000 {method 'mul_' of 'torch._C._TensorBase' objects}
+       25    0.001    0.000    1.300    0.052 MB_DPPO.py:719(model_step)
+       25    0.002    0.000    1.298    0.052 models.py:430(predict)
+        5    0.028    0.006    1.210    0.242 MB_DPPO.py:704(validateModel)
+        1    0.000    0.000    1.182    1.182 module.py:779(load_state_dict)
+    646/1    0.008    0.000    1.182    1.182 module.py:807(load)
+      646    0.548    0.001    1.174    0.002 module.py:703(_load_from_state_dict)
+    15512    0.777    0.000    0.777    0.000 {method 'sqrt' of 'torch._C._TensorBase' objects}
+     6885    0.756    0.000    0.756    0.000 {built-in method cat}
+    15512    0.747    0.000    0.747    0.000 {method 'addcdiv_' of 'torch._C._TensorBase' objects}
+     7040    0.169    0.000    0.741    0.000 MB_DPPO.py:94(getFraction)
+       50    0.037    0.001    0.733    0.015 MB_DPPO.py:388(<listcomp>)
+    24564    0.711    0.000    0.711    0.000 {method 'select' of 'torch._C._TensorBase' objects}
+       34    0.017    0.001    0.703    0.021 MB_DPPO.py:457(act)
+        1    0.006    0.006    0.680    0.680 MB_DPPO.py:318(rollout_env)
+    37030    0.676    0.000    0.676    0.000 {method 't' of 'torch._C._TensorBase' objects}
+      504    0.030    0.000    0.659    0.001 models.py:690(forward)
+    15512    0.645    0.000    0.645    0.000 {method 'addcmul_' of 'torch._C._TensorBase' objects}
+      490    0.505    0.001    0.505    0.001 {method 'copy_' of 'torch._C._TensorBase' objects}
+    17892    0.143    0.000    0.502    0.000 container.py:142(__getitem__)
+       57    0.001    0.000    0.487    0.009 std.py:1164(__iter__)
+       60    0.098    0.002    0.483    0.008 std.py:1468(display)
+       56    0.008    0.000    0.463    0.008 std.py:1329(refresh)
+     1772    0.460    0.000    0.460    0.000 {built-in method stack}
+       52    0.002    0.000    0.452    0.009 std.py:1202(update)
+        9    0.000    0.000    0.403    0.045 FigureEight.py:58(step)
+       67    0.070    0.001    0.364    0.005 optimizer.py:159(zero_grad)
+        9    0.003    0.000    0.355    0.039 base.py:295(step)
+    17892    0.081    0.000    0.343    0.000 container.py:133(_get_abs_string_index)
+     7040    0.290    0.000    0.290    0.000 MB_DPPO.py:104(<dictcomp>)
+     3430    0.028    0.000    0.288    0.000 activation.py:270(forward)
+       17    0.003    0.000    0.286    0.017 MB_DPPO.py:603(_evalV)
+      514    0.008    0.000    0.285    0.001 connection.py:161(_sendCmd)
+        1    0.001    0.001    0.283    0.283 MB_DPPO.py:269(test)
+205475/169691    0.261    0.000    0.281    0.000 {built-in method builtins.len}
+   105389    0.276    0.000    0.276    0.000 module.py:562(__getattr__)
+      514    0.009    0.000    0.271    0.001 connection.py:81(_sendExact)
+        2    0.000    0.000    0.268    0.134 accel.py:171(reset)
+        2    0.001    0.000    0.267    0.134 base.py:415(reset)
+     3430    0.260    0.000    0.260    0.000 {built-in method sigmoid}
+    15022    0.260    0.000    0.260    0.000 {method 'zero_' of 'torch._C._TensorBase' objects}
+       11    0.000    0.000    0.253    0.023 kernel.py:87(update)
+       11    0.025    0.002    0.253    0.023 traci.py:120(update)
+   106927    0.247    0.000    0.247    0.000 {built-in method torch._C._get_tracing_state}
+    35409    0.233    0.000    0.233    0.000 {built-in method as_tensor}
+       60    0.002    0.000    0.232    0.004 std.py:1154(__str__)
+     9089    0.154    0.000    0.216    0.000 MB_DPPO.py:86(__init__)
+       60    0.110    0.002    0.211    0.004 std.py:356(format_meter)
+      514    0.198    0.000    0.198    0.000 {method 'send' of '_socket.socket' objects}
+      180    0.001    0.000    0.196    0.001 utils.py:333(disp_len)
+      180    0.000    0.000    0.195    0.001 utils.py:329(_text_width)
+      180    0.157    0.001    0.194    0.001 {built-in method builtins.sum}
+     6400    0.025    0.000    0.172    0.000 MB_DPPO.py:688(<listcomp>)
+       28    0.003    0.000    0.167    0.006 traci.py:266(_add_departed)
+      237    0.002    0.000    0.164    0.001 domain.py:169(_getUniversal)
+        2    0.087    0.043    0.158    0.079 MB_DPPO.py:145(retrieve)
+      237    0.003    0.000    0.157    0.001 domain.py:174(_getCmd)
+        1    0.000    0.000    0.152    0.152 serialization.py:448(load)
+        1    0.001    0.001    0.151    0.151 serialization.py:549(_legacy_load)
+       50    0.001    0.000    0.136    0.003 MB_DPPO.py:694(<listcomp>)
+       60    0.006    0.000    0.134    0.002 std.py:349(print_status)
+       11    0.000    0.000    0.130    0.012 traci.py:90(simulation_step)
+       11    0.003    0.000    0.130    0.012 connection.py:305(simulationStep)
+      319    0.039    0.000    0.124    0.000 connection.py:183(_readSubscription)
+        1    0.005    0.005    0.121    0.121 {method 'load' of '_pickle.Unpickler' objects}
+   316544    0.111    0.000    0.111    0.000 {method 'startswith' of 'str' objects}
+   236713    0.108    0.000    0.108    0.000 {method 'values' of 'collections.OrderedDict' objects}
+        2    0.001    0.000    0.108    0.054 MB_DPPO.py:490(get_logp)
+        1    0.020    0.020    0.098    0.098 MB_DPPO.py:632(_process_traj)
+        9    0.000    0.000    0.097    0.011 base.py:600(apply_rl_actions)
+     7041    0.097    0.000    0.097    0.000 {built-in method randint}
+      879    0.096    0.000    0.096    0.000 {built-in method isnan}
+      983    0.094    0.000    0.094    0.000 {built-in method zeros_like}
+    21322    0.063    0.000    0.090    0.000 container.py:94(__iter__)
+    47489    0.089    0.000    0.089    0.000 MB_DPPO.py:107(__getitem__)
+        1    0.000    0.000    0.083    0.083 MB_DPPO.py:597(save)
+        1    0.000    0.000    0.083    0.083 utils.py:339(save)
+       60    0.000    0.000    0.081    0.001 utils.py:341(disp_trim)
+       18    0.001    0.000    0.080    0.004 base.py:567(clip_actions)
+       54    0.000    0.000    0.078    0.001 FigureEight.py:29(action_space)
+       54    0.002    0.000    0.077    0.001 box.py:23(__init__)
+      210    0.001    0.000    0.073    0.000 domain.py:186(_setCmd)
+     1782    0.007    0.000    0.073    0.000 domain.py:82(add)
+     2019    0.015    0.000    0.071    0.000 domain.py:41(_parse)
+       18    0.000    0.000    0.065    0.004 FigureEight.py:48(get_state_)
+       56    0.000    0.000    0.064    0.001 domain.py:205(subscribe)
+       56    0.001    0.000    0.064    0.001 connection.py:226(_subscribe)
+       54    0.003    0.000    0.063    0.001 MB_DPPO.py:60(_collect)
+       53    0.000    0.000    0.063    0.001 MB_DPPO.py:39(gather)
+       83    0.036    0.000    0.061    0.001 {method 'choice' of 'numpy.random.mtrand.RandomState' objects}
+      490    0.002    0.000    0.060    0.000 _utils.py:134(_rebuild_tensor_v2)
+        1    0.038    0.038    0.060    0.060 utils.py:341(<dictcomp>)
+      490    0.001    0.000    0.058    0.000 _utils.py:128(_rebuild_tensor)
+       55    0.001    0.000    0.057    0.001 MB_DPPO.py:185(sampleTrajs)
+      490    0.053    0.000    0.056    0.000 serialization.py:649(persistent_load)
+      514    0.006    0.000    0.056    0.000 connection.py:62(_recvExact)
+      756    0.054    0.000    0.054    0.000 {built-in method index_select}
+       33    0.001    0.000    0.053    0.002 MB_DPPO.py:120(store)
+      490    0.052    0.000    0.052    0.000 {built-in method tensor}
+        9    0.000    0.000    0.051    0.006 traci.py:153(check_collision)
+        9    0.000    0.000    0.051    0.006 _simulation.py:470(getStartingTeleportNumber)
+      220    0.001    0.000    0.050    0.000 loss.py:430(forward)
+      220    0.003    0.000    0.049    0.000 functional.py:2195(mse_loss)
+     1028    0.049    0.000    0.049    0.000 {method 'recv' of '_socket.socket' objects}
+        4    0.000    0.000    0.048    0.012 std.py:1526(trange)
+        5    0.003    0.001    0.048    0.010 MB_DPPO.py:392(<listcomp>)
+      167    0.046    0.000    0.046    0.000 {method 'sum' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.044    0.044 MB_DPPO.py:527(<dictcomp>)
+      220    0.044    0.000    0.044    0.000 {built-in method torch._C._nn.mse_loss}
+    16002    0.024    0.000    0.043    0.000 tensor.py:464(__hash__)
+       28    0.001    0.000    0.043    0.002 traci.py:1102(add)
+       11    0.013    0.001    0.042    0.004 traci.py:714(_multi_lane_headways)
+      344    0.006    0.000    0.041    0.000 utils.py:143(inner)
+      108    0.040    0.000    0.040    0.000 numeric.py:1786(isscalar)
+     9089    0.040    0.000    0.040    0.000 MB_DPPO.py:91(<dictcomp>)
+       61    0.035    0.001    0.040    0.001 normal.py:70(log_prob)
+    40256    0.023    0.000    0.037    0.000 utils.py:330(<genexpr>)
+       28    0.000    0.000    0.037    0.001 _vehicle.py:868(subscribeLeader)
+       18    0.036    0.002    0.037    0.002 FigureEight.py:50(<listcomp>)
+        9    0.000    0.000    0.036    0.004 accel.py:101(_apply_rl_actions)
+     7099    0.035    0.000    0.035    0.000 {method 'item' of 'torch._C._TensorBase' objects}
+        9    0.004    0.000    0.035    0.004 traci.py:956(apply_acceleration)
+      640    0.002    0.000    0.035    0.000 MB_DPPO.py:709(<listcomp>)
+        8    0.003    0.000    0.035    0.004 std.py:1269(close)
+    15022    0.034    0.000    0.034    0.000 {method 'detach_' of 'torch._C._TensorBase' objects}
+       54    0.000    0.000    0.034    0.001 space.py:9(__init__)
+       54    0.000    0.000    0.033    0.001 space.py:21(seed)
+       54    0.011    0.000    0.033    0.001 seeding.py:11(np_random)
+      588    0.021    0.000    0.033    0.000 traci.py:1019(get_x_by_id)
+        4    0.000    0.000    0.032    0.008 std.py:563(__new__)
+      126    0.001    0.000    0.031    0.000 _vehicle.py:1142(slowDown)
+       28    0.000    0.000    0.031    0.001 _vehicle.py:1565(add)
+    13021    0.020    0.000    0.030    0.000 storage.py:37(read)
+     2414    0.017    0.000    0.029    0.000 storage.py:69(readString)
+       18    0.002    0.000    0.028    0.002 FigureEight.py:52(<listcomp>)
+      490    0.027    0.000    0.027    0.000 {method '_set_from_file' of 'torch._C.FloatStorageBase' objects}
+  458/386    0.003    0.000    0.027    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+       60    0.001    0.000    0.027    0.000 std.py:343(fp_write)
+      154    0.019    0.000    0.026    0.000 traci.py:780(_multi_lane_headways_util)
+        1    0.000    0.000    0.026    0.026 _monitor.py:30(__init__)
+        1    0.000    0.000    0.026    0.026 threading.py:829(start)
+        1    0.000    0.000    0.025    0.025 threading.py:534(wait)
+        1    0.000    0.000    0.025    0.025 threading.py:264(wait)
+        4    0.025    0.006    0.025    0.006 {method 'acquire' of '_thread.lock' objects}
+      138    0.002    0.000    0.024    0.000 <__array_function__ internals>:2(prod)
+        1    0.024    0.024    0.024    0.024 {method 'tolist' of 'torch._C._TensorBase' objects}
+    21567    0.024    0.000    0.024    0.000 {built-in method builtins.iter}
+    35784    0.020    0.000    0.024    0.000 container.py:163(__len__)
+    646/1    0.020    0.000    0.023    0.023 module.py:663(state_dict)
+     9792    0.023    0.000    0.023    0.000 {method 'size' of 'torch._C._TensorBase' objects}
+      881    0.022    0.000    0.022    0.000 {method 'mean' of 'torch._C._TensorBase' objects}
+      178    0.021    0.000    0.021    0.000 {method 'write' of '_io.TextIOWrapper' objects}
+      707    0.021    0.000    0.021    0.000 {method 'expand' of 'torch._C._TensorBase' objects}
+      154    0.002    0.000    0.021    0.000 _vehicle.py:142(_readLeader)
+      138    0.001    0.000    0.021    0.000 fromnumeric.py:2843(prod)
+        5    0.000    0.000    0.021    0.004 MB_DPPO.py:715(<listcomp>)
+      191    0.001    0.000    0.020    0.000 storage.py:78(readStringList)
+       28    0.000    0.000    0.020    0.001 _vehicle.py:294(getRoadID)
+      140    0.002    0.000    0.020    0.000 fromnumeric.py:73(_wrapreduction)
+    16012    0.020    0.000    0.020    0.000 {built-in method builtins.id}
+       28    0.000    0.000    0.020    0.001 _vehicle.py:344(getLanePosition)
+      329    0.019    0.000    0.019    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    30131    0.019    0.000    0.019    0.000 {built-in method builtins.isinstance}
+    37399    0.019    0.000    0.019    0.000 {method 'dim' of 'torch._C._TensorBase' objects}
+      191    0.008    0.000    0.019    0.000 storage.py:80(<listcomp>)
+       60    0.018    0.000    0.018    0.000 std.py:1450(format_dict)
+    17892    0.018    0.000    0.018    0.000 {built-in method _operator.index}
+      108    0.002    0.000    0.018    0.000 std.py:1445(moveto)
+      154    0.015    0.000    0.018    0.000 storage.py:73(readTypedString)
+       28    0.000    0.000    0.017    0.001 _vehicle.py:315(getTypeID)
+        3    0.017    0.006    0.017    0.006 {built-in method io.open}
+       28    0.000    0.000    0.016    0.001 _vehicle.py:1529(setLaneChangeMode)
+       28    0.000    0.000    0.016    0.001 _vehicle.py:308(getLaneIndex)
+        4    0.001    0.000    0.015    0.004 std.py:849(__init__)
+      879    0.015    0.000    0.015    0.000 {method 'any' of 'torch._C._TensorBase' objects}
+      506    0.014    0.000    0.014    0.000 {built-in method exp}
+      176    0.014    0.000    0.014    0.000 {method 'flush' of '_io.TextIOWrapper' objects}
+    40076    0.014    0.000    0.014    0.000 {built-in method unicodedata.east_asian_width}
+    78175    0.013    0.000    0.013    0.000 {method 'append' of 'list' objects}
+       54    0.011    0.000    0.013    0.000 contextlib.py:71(inner)
+       33    0.000    0.000    0.013    0.000 MB_DPPO.py:125(<listcomp>)
+        5    0.012    0.002    0.012    0.002 {method 'abs' of 'torch._C._TensorBase' objects}
+        4    0.000    0.000    0.011    0.003 domain.py:191(getIDList)
+       28    0.000    0.000    0.011    0.000 _simulation.py:252(getTime)
+       28    0.000    0.000    0.009    0.000 _vehicle.py:476(getLength)
+     1061    0.008    0.000    0.008    0.000 {method 'view' of 'torch._C._TensorBase' objects}
+       35    0.008    0.000    0.008    0.000 {method 'unsqueeze' of 'torch._C._TensorBase' objects}
+      588    0.008    0.000    0.008    0.000 traci.py:252(get_x)
+      646    0.008    0.000    0.008    0.000 module.py:740(<dictcomp>)
+    15573    0.007    0.000    0.007    0.000 {built-in method math.sqrt}
+       28    0.000    0.000    0.007    0.000 _vehicle.py:1536(setSpeedMode)
+       34    0.001    0.000    0.007    0.000 normal.py:60(sample)
+    13643    0.006    0.000    0.006    0.000 {built-in method _struct.unpack}
+        4    0.000    0.000    0.006    0.002 std.py:660(get_lock)
+       11    0.000    0.000    0.006    0.001 accel.py:116(get_state)
+        1    0.000    0.000    0.006    0.006 std.py:92(__init__)
+        1    0.000    0.000    0.006    0.006 std.py:118(create_mp_lock)
+        1    0.000    0.000    0.006    0.006 context.py:69(RLock)
+       28    0.000    0.000    0.006    0.000 _vehicle.py:398(getFuelConsumption)
+       55    0.006    0.000    0.006    0.000 MB_DPPO.py:187(<listcomp>)
+     1075    0.003    0.000    0.006    0.000 storage.py:55(readDouble)
+       97    0.006    0.000    0.006    0.000 tensor.py:25(wrapped)
+       34    0.005    0.000    0.005    0.000 {built-in method normal}
+       54    0.005    0.000    0.005    0.000 {method 'seed' of 'numpy.random.mtrand.RandomState' objects}
+        1    0.000    0.000    0.005    0.005 <frozen importlib._bootstrap>:978(_find_and_load)
+      100    0.000    0.000    0.005    0.000 tensor.py:393(__rsub__)
+        1    0.000    0.000    0.005    0.005 <frozen importlib._bootstrap>:948(_find_and_load_unlocked)
+      100    0.005    0.000    0.005    0.000 {built-in method rsub}
+      490    0.005    0.000    0.005    0.000 {method 'set_' of 'torch._C._TensorBase' objects}
+       28    0.000    0.000    0.005    0.000 _vehicle.py:245(getSpeed)
+        1    0.000    0.000    0.005    0.005 <frozen importlib._bootstrap>:663(_load_unlocked)
+        1    0.000    0.000    0.005    0.005 <frozen importlib._bootstrap_external>:722(exec_module)
+       25    0.000    0.000    0.005    0.000 categorical.py:102(sample)
+       17    0.000    0.000    0.005    0.000 accel.py:109(compute_reward)
+      556    0.003    0.000    0.005    0.000 storage.py:63(readLength)
+       62    0.001    0.000    0.004    0.000 normal.py:43(__init__)
+       17    0.001    0.000    0.004    0.000 rewards.py:6(desired_velocity)
+       61    0.004    0.000    0.004    0.000 {method 'log' of 'torch._C._TensorBase' objects}
+    13021    0.004    0.000    0.004    0.000 {built-in method _struct.calcsize}
+      514    0.004    0.000    0.004    0.000 connection.py:108(_pack)
+       55    0.001    0.000    0.004    0.000 loss.py:497(forward)
+       11    0.001    0.000    0.004    0.000 accel.py:120(<listcomp>)
+        1    0.000    0.000    0.004    0.004 <frozen importlib._bootstrap_external>:793(get_code)
+     1896    0.003    0.000    0.004    0.000 traci.py:575(get_edge)
+        9    0.001    0.000    0.004    0.000 accel.py:125(additional_command)
+      601    0.003    0.000    0.004    0.000 {method 'format' of 'str' objects}
+ 1048/684    0.002    0.000    0.004    0.000 traci.py:556(get_speed)
+       67    0.001    0.000    0.004    0.000 __init__.py:20(_make_grads)
+        2    0.003    0.002    0.003    0.002 {method 'clamp' of 'torch._C._TensorBase' objects}
+       55    0.000    0.000    0.003    0.000 functional.py:2024(binary_cross_entropy)
+        1    0.003    0.003    0.003    0.003 <frozen importlib._bootstrap_external>:438(_classify_pyc)
+    14462    0.003    0.000    0.003    0.000 linear.py:29(forward)
+       25    0.003    0.000    0.003    0.000 {built-in method multinomial}
+      117    0.001    0.000    0.003    0.000 {method 'any' of 'numpy.generic' objects}
+       66    0.002    0.000    0.003    0.000 traci.py:866(_next_edge_leaders)
+       66    0.002    0.000    0.003    0.000 traci.py:911(_prev_edge_followers)
+       55    0.003    0.000    0.003    0.000 {built-in method torch._C._nn.binary_cross_entropy}
+       62    0.001    0.000    0.003    0.000 utils.py:7(broadcast_all)
+       67    0.003    0.000    0.003    0.000 {built-in method ones_like}
+    11523    0.003    0.000    0.003    0.000 {method 'get' of 'dict' objects}
+      282    0.000    0.000    0.003    0.000 functional.py:26(broadcast_tensors)
+     1013    0.003    0.000    0.003    0.000 {method 'detach' of 'torch._C._TensorBase' objects}
+       72    0.002    0.000    0.002    0.000 std.py:108(release)
+      646    0.002    0.000    0.002    0.000 module.py:643(_save_to_state_dict)
+        8    0.000    0.000    0.002    0.000 FigureEight.py:77(_comparable_reward)
+      183    0.000    0.000    0.002    0.000 _methods.py:44(_any)
+      282    0.002    0.000    0.002    0.000 {built-in method broadcast_tensors}
+     1028    0.001    0.000    0.002    0.000 traci.py:569(get_position)
+      115    0.000    0.000    0.002    0.000 std.py:289(format_interval)
+       25    0.001    0.000    0.002    0.000 categorical.py:44(__init__)
+       34    0.000    0.000    0.002    0.000 <__array_function__ internals>:2(norm)
+      490    0.002    0.000    0.002    0.000 serialization.py:154(default_restore_location)
+       55    0.000    0.000    0.002    0.000 functional.py:680(norm)
+       26    0.001    0.000    0.002    0.000 traci.py:559(<listcomp>)
+       18    0.000    0.000    0.002    0.000 <__array_function__ internals>:2(clip)
+        2    0.002    0.001    0.002    0.001 {method 'std' of 'torch._C._TensorBase' objects}
+       25    0.002    0.000    0.002    0.000 {built-in method clamp}
+      124    0.001    0.000    0.002    0.000 {built-in method builtins.all}
+       55    0.002    0.000    0.002    0.000 {built-in method frobenius_norm}
+      108    0.001    0.000    0.002    0.000 numeric.py:283(full)
+       18    0.000    0.000    0.002    0.000 fromnumeric.py:2021(clip)
+      126    0.001    0.000    0.002    0.000 routing_controllers.py:19(choose_route)
+       56    0.002    0.000    0.002    0.000 {method 'float' of 'torch._C._TensorBase' objects}
+       18    0.000    0.000    0.002    0.000 fromnumeric.py:55(_wrapfunc)
+       18    0.000    0.000    0.001    0.000 {method 'clip' of 'numpy.ndarray' objects}
+       11    0.001    0.000    0.001    0.000 accel.py:118(<listcomp>)
+      110    0.001    0.000    0.001    0.000 _ufunc_config.py:39(seterr)
+       54    0.000    0.000    0.001    0.000 seeding.py:45(create_seed)
+       18    0.000    0.000    0.001    0.000 _methods.py:97(_clip)
+      398    0.001    0.000    0.001    0.000 {built-in method builtins.divmod}
+       54    0.000    0.000    0.001    0.000 seeding.py:21(hash_seed)
+      108    0.001    0.000    0.001    0.000 seeding.py:69(_bigint_from_bytes)
+       33    0.000    0.000    0.001    0.000 MB_DPPO.py:137(<listcomp>)
+        1    0.001    0.001    0.001    0.001 {method 'index_select' of 'torch._C._TensorBase' objects}
+      246    0.001    0.000    0.001    0.000 storage.py:42(readInt)
+      165    0.001    0.000    0.001    0.000 domain.py:222(getSubscriptionResults)
+       34    0.001    0.000    0.001    0.000 linalg.py:2316(norm)
+      343    0.001    0.000    0.001    0.000 {built-in method numpy.array}
+        3    0.000    0.000    0.001    0.000 {built-in method builtins.print}
+     3291    0.001    0.000    0.001    0.000 {built-in method _struct.pack}
+       18    0.001    0.000    0.001    0.000 {method 'squeeze' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.001    0.001 arrayprint.py:1489(_array_str_implementation)
+       55    0.000    0.000    0.001    0.000 _ufunc_config.py:441(__enter__)
+        1    0.000    0.000    0.001    0.001 arrayprint.py:532(array2string)
+     2415    0.001    0.000    0.001    0.000 {method 'decode' of 'bytes' objects}
+       50    0.001    0.000    0.001    0.000 {method 'reshape' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.001    0.001 arrayprint.py:477(wrapper)
+        9    0.000    0.000    0.001    0.000 FigureEight.py:68(get_reward_)
+     2593    0.001    0.000    0.001    0.000 {method 'split' of 'str' objects}
+        1    0.000    0.000    0.001    0.001 arrayprint.py:494(_array2string)
+      434    0.001    0.000    0.001    0.000 traci.py:581(get_lane)
+       60    0.001    0.000    0.001    0.000 std.py:188(__format__)
+      120    0.001    0.000    0.001    0.000 utils.py:222(_is_ascii)
+      124    0.001    0.000    0.001    0.000 grad_mode.py:41(__exit__)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap>:211(_call_with_frames_removed)
+       16    0.001    0.000    0.001    0.000 std.py:115(__exit__)
+      792    0.001    0.000    0.001    0.000 domain.py:78(reset)
+      154    0.000    0.000    0.001    0.000 storage.py:58(readTypedDouble)
+       55    0.000    0.000    0.001    0.000 _ufunc_config.py:446(__exit__)
+      167    0.001    0.000    0.001    0.000 {method 'to' of 'torch._C._TensorBase' objects}
+      315    0.001    0.000    0.001    0.000 std.py:234(__call__)
+      497    0.001    0.000    0.001    0.000 {method 'tell' of '_io.BufferedReader' objects}
+      108    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(copyto)
+      252    0.000    0.000    0.001    0.000 traci.py:646(get_routing_controller)
+       36    0.000    0.000    0.001    0.000 _methods.py:63(_clip_dep_is_scalar_nan)
+       74    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(concatenate)
+      245    0.001    0.000    0.001    0.000 models.py:497(<listcomp>)
+        1    0.000    0.000    0.001    0.001 arrayprint.py:425(_get_format_function)
+      108    0.001    0.000    0.001    0.000 {built-in method posix.urandom}
+      980    0.000    0.000    0.001    0.000 serialization.py:716(_maybe_decode_ascii)
+        1    0.000    0.000    0.001    0.001 MB_DPPO.py:53(reduce_sum)
+      186    0.001    0.000    0.001    0.000 utils.py:23(<genexpr>)
+       45    0.000    0.000    0.001    0.000 getlimits.py:365(__new__)
+      308    0.000    0.000    0.001    0.000 traci.py:595(get_length)
+        1    0.000    0.000    0.001    0.001 serialization.py:595(legacy_load)
+        1    0.000    0.000    0.001    0.001 arrayprint.py:381(<lambda>)
+        2    0.001    0.000    0.001    0.000 {built-in method min}
+        1    0.000    0.000    0.001    0.001 arrayprint.py:856(__init__)
+     3876    0.001    0.000    0.001    0.000 {method 'items' of 'collections.OrderedDict' objects}
+        1    0.000    0.000    0.001    0.001 tarfile.py:1524(open)
+        1    0.000    0.000    0.001    0.001 synchronize.py:11(<module>)
+        1    0.000    0.000    0.001    0.001 synchronize.py:186(__init__)
+      105    0.001    0.000    0.001    0.000 {method 'sort' of 'list' objects}
+       55    0.001    0.000    0.001    0.000 {built-in method now}
+      278    0.001    0.000    0.001    0.000 {built-in method builtins.max}
+        1    0.000    0.000    0.001    0.001 tarfile.py:1615(taropen)
+        1    0.000    0.000    0.001    0.001 synchronize.py:50(__init__)
+       60    0.000    0.000    0.001    0.000 std.py:155(__init__)
+       11    0.000    0.000    0.001    0.000 traci.py:728(<listcomp>)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:883(fillFormat)
+        9    0.000    0.000    0.000    0.000 accel.py:104(<listcomp>)
+        1    0.000    0.000    0.000    0.000 tarfile.py:1413(__init__)
+      897    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
+      245    0.000    0.000    0.000    0.000 container.py:167(__iter__)
+        8    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
+        4    0.000    0.000    0.000    0.000 std.py:586(_decr_instances)
+       54    0.000    0.000    0.000    0.000 random.py:681(getrandbits)
+      110    0.000    0.000    0.000    0.000 _ufunc_config.py:139(geterr)
+      100    0.000    0.000    0.000    0.000 _asarray.py:16(asarray)
+      514    0.000    0.000    0.000    0.000 storage.py:33(__init__)
+      177    0.000    0.000    0.000    0.000 abc.py:137(__instancecheck__)
+       72    0.000    0.000    0.000    0.000 std.py:104(acquire)
+       28    0.000    0.000    0.000    0.000 rlcontroller.py:34(__init__)
+      124    0.000    0.000    0.000    0.000 grad_mode.py:37(__enter__)
+      363    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+       76    0.000    0.000    0.000    0.000 accel.py:150(sorted_ids)
+        1    0.000    0.000    0.000    0.000 tarfile.py:2268(next)
+      124    0.000    0.000    0.000    0.000 grad_mode.py:137(__init__)
+        4    0.000    0.000    0.000    0.000 std.py:579(_get_free_pos)
+        4    0.000    0.000    0.000    0.000 utils.py:282(_screen_shape_linux)
+      126    0.000    0.000    0.000    0.000 traci.py:587(get_route)
+       34    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(dot)
+      177    0.000    0.000    0.000    0.000 {built-in method _abc._abc_instancecheck}
+      180    0.000    0.000    0.000    0.000 {method 'sub' of 're.Pattern' objects}
+      630    0.000    0.000    0.000    0.000 {built-in method time.time}
+       36    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(ndim)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:882(_find_spec)
+       18    0.000    0.000    0.000    0.000 _weakrefset.py:58(__iter__)
+      140    0.000    0.000    0.000    0.000 fromnumeric.py:74(<dictcomp>)
+       87    0.000    0.000    0.000    0.000 distribution.py:24(__init__)
+        2    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(stack)
+       11    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(copy)
+       54    0.000    0.000    0.000    0.000 seeding.py:80(_int_list_from_bigint)
+        4    0.000    0.000    0.000    0.000 std.py:582(<setcomp>)
+        4    0.000    0.000    0.000    0.000 {built-in method _pickle.load}
+      197    0.000    0.000    0.000    0.000 {built-in method builtins.getattr}
+        1    0.000    0.000    0.000    0.000 synchronize.py:114(_make_name)
+      248    0.000    0.000    0.000    0.000 __init__.py:116(is_tensor)
+        4    0.000    0.000    0.000    0.000 utils.py:162(__init__)
+      227    0.000    0.000    0.000    0.000 {built-in method builtins.hasattr}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1272(find_spec)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1240(_get_spec)
+        4    0.000    0.000    0.000    0.000 {method 'mean' of 'numpy.ndarray' objects}
+       28    0.000    0.000    0.000    0.000 base_controller.py:47(__init__)
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.next}
+       59    0.000    0.000    0.000    0.000 distribution.py:209(_extended_shape)
+       11    0.000    0.000    0.000    0.000 _simulation.py:644(getSubscriptionResults)
+      264    0.000    0.000    0.000    0.000 traci.py:314(next_edge)
+        1    0.000    0.000    0.000    0.000 tempfile.py:153(__next__)
+      125    0.000    0.000    0.000    0.000 {method 'astype' of 'numpy.ndarray' objects}
+      264    0.000    0.000    0.000    0.000 traci.py:321(prev_edge)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1356(find_spec)
+        5    0.000    0.000    0.000    0.000 _methods.py:134(_mean)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:523(_compile_bytecode)
+      799    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+      532    0.000    0.000    0.000    0.000 traci.py:278(length)
+     1584    0.000    0.000    0.000    0.000 {method 'clear' of 'dict' objects}
+       54    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1009(_handle_fromlist)
+        1    0.000    0.000    0.000    0.000 {built-in method marshal.loads}
+      165    0.000    0.000    0.000    0.000 domain.py:87(get)
+      275    0.000    0.000    0.000    0.000 _reduction.py:6(get_enum)
+     1272    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
+      490    0.000    0.000    0.000    0.000 serialization.py:100(_cpu_deserialize)
+      286    0.000    0.000    0.000    0.000 traci.py:294(num_lanes)
+       18    0.000    0.000    0.000    0.000 _methods.py:78(_clip_dep_invoke_with_casting)
+       12    0.000    0.000    0.000    0.000 {method 'any' of 'numpy.ndarray' objects}
+      264    0.000    0.000    0.000    0.000 traci.py:270(edge_length)
+      248    0.000    0.000    0.000    0.000 {built-in method torch._C.is_grad_enabled}
+      647    0.000    0.000    0.000    0.000 {method 'keys' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 serialization.py:210(_open_file_like)
+        2    0.000    0.000    0.000    0.000 shape_base.py:357(stack)
+       28    0.000    0.000    0.000    0.000 base_routing_controller.py:30(__init__)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:791(checkConverged)
+        4    0.000    0.000    0.000    0.000 _weakrefset.py:106(remove)
+       54    0.000    0.000    0.000    0.000 {built-in method _hashlib.openssl_sha512}
+       16    0.000    0.000    0.000    0.000 std.py:112(__enter__)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:729(_formatArray)
+       12    0.000    0.000    0.000    0.000 {method 'remove' of 'set' objects}
+        8    0.000    0.000    0.000    0.000 std.py:1290(fp_write)
+      110    0.000    0.000    0.000    0.000 {built-in method numpy.seterrobj}
+        1    0.000    0.000    0.000    0.000 pydev_monkey.py:1110(pydev_start_new_thread)
+        1    0.000    0.000    0.000    0.000 tarfile.py:1089(fromtarfile)
+      108    0.000    0.000    0.000    0.000 utils.py:319(_term_move_up)
+      406    0.000    0.000    0.000    0.000 traci.py:302(max_speed)
+      108    0.000    0.000    0.000    0.000 {built-in method numpy.empty}
+      154    0.000    0.000    0.000    0.000 traci.py:654(set_lane_headways)
+        4    0.000    0.000    0.000    0.000 {built-in method fcntl.ioctl}
+      280    0.000    0.000    0.000    0.000 traci.py:460(get_ids)
+        1    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(mean)
+        1    0.000    0.000    0.000    0.000 threading.py:758(__init__)
+       72    0.000    0.000    0.000    0.000 {method 'acquire' of '_multiprocessing.SemLock' objects}
+      2/1    0.000    0.000    0.000    0.000 arrayprint.py:738(recurser)
+       54    0.000    0.000    0.000    0.000 {method 'digest' of '_hashlib.HASH' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _thread.start_new_thread}
+      154    0.000    0.000    0.000    0.000 {built-in method _bisect.bisect_left}
+      220    0.000    0.000    0.000    0.000 {built-in method numpy.geterrobj}
+        1    0.000    0.000    0.000    0.000 serialization.py:192(__init__)
+      154    0.000    0.000    0.000    0.000 traci.py:678(set_lane_leaders)
+      154    0.000    0.000    0.000    0.000 traci.py:702(set_lane_followers)
+        2    0.000    0.000    0.000    0.000 {built-in method mean}
+        1    0.000    0.000    0.000    0.000 tempfile.py:142(rng)
+        1    0.000    0.000    0.000    0.000 tarfile.py:1026(frombuf)
+      154    0.000    0.000    0.000    0.000 traci.py:690(set_lane_tailways)
+        1    0.000    0.000    0.000    0.000 {built-in method zeros}
+       61    0.000    0.000    0.000    0.000 {built-in method math.log}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:576(module_from_spec)
+       60    0.000    0.000    0.000    0.000 utils.py:57(__init__)
+      6/1    0.000    0.000    0.000    0.000 abc.py:141(__subclasscheck__)
+      248    0.000    0.000    0.000    0.000 {built-in method torch._C.set_grad_enabled}
+        1    0.000    0.000    0.000    0.000 tempfile.py:156(<listcomp>)
+      6/1    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}
+        4    0.000    0.000    0.000    0.000 utils.py:215(_supports_unicode)
+       11    0.000    0.000    0.000    0.000 function_base.py:730(copy)
+      154    0.000    0.000    0.000    0.000 traci.py:452(get_type)
+        1    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(amax)
+       19    0.000    0.000    0.000    0.000 {built-in method builtins.any}
+        2    0.000    0.000    0.000    0.000 serialization.py:47(_is_zipfile)
+        4    0.000    0.000    0.000    0.000 utils.py:298(flush)
+       60    0.000    0.000    0.000    0.000 {built-in method builtins.min}
+      177    0.000    0.000    0.000    0.000 {method 'numel' of 'torch._C._TensorBase' objects}
+        8    0.000    0.000    0.000    0.000 _weakrefset.py:26(__exit__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:504(_init_module_attrs)
+      165    0.000    0.000    0.000    0.000 connection.py:250(_getSubscriptionResults)
+        1    0.000    0.000    0.000    0.000 {method 'sum' of 'numpy.ndarray' objects}
+        2    0.000    0.000    0.000    0.000 arrayprint.py:938(<genexpr>)
+       36    0.000    0.000    0.000    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(amin)
+        1    0.000    0.000    0.000    0.000 posixpath.py:376(abspath)
+        9    0.000    0.000    0.000    0.000 traci.py:1007(choose_routes)
+       36    0.000    0.000    0.000    0.000 _methods.py:73(_clip_dep_is_byte_swapped)
+        4    0.000    0.000    0.000    0.000 std.py:330(status_printer)
+       34    0.000    0.000    0.000    0.000 {method 'ravel' of 'numpy.ndarray' objects}
+        5    0.000    0.000    0.000    0.000 _weakrefset.py:81(add)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:74(_path_stat)
+        4    0.000    0.000    0.000    0.000 utils.py:74(__eq__)
+      138    0.000    0.000    0.000    0.000 fromnumeric.py:2838(_prod_dispatcher)
+       60    0.000    0.000    0.000    0.000 utils.py:61(__format__)
+        8    0.000    0.000    0.000    0.000 random.py:256(choice)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:914(get_data)
+       60    0.000    0.000    0.000    0.000 std.py:169(colour)
+        3    0.000    0.000    0.000    0.000 {built-in method posix.stat}
+      153    0.000    0.000    0.000    0.000 {built-in method builtins.abs}
+       57    0.000    0.000    0.000    0.000 {built-in method from_bytes}
+       73    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.RLock' objects}
+        9    0.000    0.000    0.000    0.000 {method 'numpy' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.000    0.000 util.py:136(register_after_fork)
+       14    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+      154    0.000    0.000    0.000    0.000 traci.py:752(<lambda>)
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:3231(mean)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:147(__enter__)
+       22    0.000    0.000    0.000    0.000 {built-in method fromkeys}
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:271(cache_from_source)
+        1    0.000    0.000    0.000    0.000 tarfile.py:172(nti)
+       66    0.000    0.000    0.000    0.000 traci.py:743(<listcomp>)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:69(_make_options_dict)
+        4    0.000    0.000    0.000    0.000 utils.py:105(__init__)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:403(cached)
+        6    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:56(_path_join)
+       73    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
+      137    0.000    0.000    0.000    0.000 traci.py:476(get_rl_ids)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:181(storeTrajs)
+       11    0.000    0.000    0.000    0.000 traci.py:51(update)
+        1    0.000    0.000    0.000    0.000 random.py:88(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:369(_get_cached)
+        1    0.000    0.000    0.000    0.000 serialization.py:261(_should_read_directly)
+        2    0.000    0.000    0.000    0.000 arrayprint.py:933(<genexpr>)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1351(_get_spec)
+       72    0.000    0.000    0.000    0.000 {method 'release' of '_multiprocessing.SemLock' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:93(_path_isfile)
+       81    0.000    0.000    0.000    0.000 {built-in method builtins.issubclass}
+        2    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.dragon4_positional}
+        2    0.000    0.000    0.000    0.000 shape_base.py:348(_stack_dispatcher)
+       28    0.000    0.000    0.000    0.000 base_lane_changing_controller.py:33(__init__)
+       34    0.000    0.000    0.000    0.000 linalg.py:121(isComplexType)
+        1    0.000    0.000    0.000    0.000 random.py:97(seed)
+        1    0.000    0.000    0.000    0.000 weakref.py:165(__setitem__)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:530(<listcomp>)
+        2    0.000    0.000    0.000    0.000 threading.py:499(__init__)
+       11    0.000    0.000    0.000    0.000 connection.py:327(_manageStepListeners)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:84(_path_is_mode_type)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:157(_get_module_lock)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:638(<listcomp>)
+       74    0.000    0.000    0.000    0.000 multiarray.py:145(concatenate)
+      108    0.000    0.000    0.000    0.000 multiarray.py:1043(copyto)
+        8    0.000    0.000    0.000    0.000 random.py:224(_randbelow)
+        8    0.000    0.000    0.000    0.000 utils.py:136(disable_on_exception)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:318(__exit__)
+       60    0.000    0.000    0.000    0.000 std.py:165(colour)
+       11    0.000    0.000    0.000    0.000 base.py:710(render)
+        4    0.000    0.000    0.000    0.000 utils.py:201(_is_utf)
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:2551(amax)
+        5    0.000    0.000    0.000    0.000 _methods.py:50(_count_reduce_items)
+        1    0.000    0.000    0.000    0.000 threading.py:1120(daemon)
+       28    0.000    0.000    0.000    0.000 traci.py:1110(<listcomp>)
+        7    0.000    0.000    0.000    0.000 _asarray.py:88(asanyarray)
+        1    0.000    0.000    0.000    0.000 {built-in method _pickle.dump}
+        8    0.000    0.000    0.000    0.000 _weakrefset.py:20(__enter__)
+        1    0.000    0.000    0.000    0.000 {method 'read' of '_io.FileIO' objects}
+       24    0.000    0.000    0.000    0.000 {method 'copy' of 'dict' objects}
+       11    0.000    0.000    0.000    0.000 traci.py:94(update)
+        1    0.000    0.000    0.000    0.000 {function Random.seed at 0x7f72b9ea08c8}
+        4    0.000    0.000    0.000    0.000 std.py:1151(__del__)
+        9    0.000    0.000    0.000    0.000 {method 'squeeze' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.000    0.000 arrayprint.py:967(__call__)
+        2    0.000    0.000    0.000    0.000 shape_base.py:420(<listcomp>)
+        1    0.000    0.000    0.000    0.000 _methods.py:36(_sum)
+       28    0.000    0.000    0.000    0.000 traci.py:1112(<listcomp>)
+        1    0.000    0.000    0.000    0.000 posixpath.py:338(normpath)
+        1    0.000    0.000    0.000    0.000 serialization.py:195(__exit__)
+       12    0.000    0.000    0.000    0.000 utils.py:101(wrapper_setattr)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:574(spec_from_file_location)
+        3    0.000    0.000    0.000    0.000 _monitor.py:93(report)
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:2676(amin)
+       36    0.000    0.000    0.000    0.000 fromnumeric.py:3037(ndim)
+        2    0.000    0.000    0.000    0.000 threading.py:216(__init__)
+        8    0.000    0.000    0.000    0.000 _weakrefset.py:16(__init__)
+       54    0.000    0.000    0.000    0.000 contextlib.py:58(_recreate_cm)
+        9    0.000    0.000    0.000    0.000 {method 'read' of '_io.BufferedReader' objects}
+       12    0.000    0.000    0.000    0.000 std.py:229(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:471(_validate_timestamp_pyc)
+        6    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:58(<listcomp>)
+        6    0.000    0.000    0.000    0.000 {method 'seek' of '_io.BufferedReader' objects}
+       22    0.000    0.000    0.000    0.000 traci.py:306(get_edge_list)
+        1    0.000    0.000    0.000    0.000 <string>:1(__new__)
+        8    0.000    0.000    0.000    0.000 utils.py:171(__eq__)
+        1    0.000    0.000    0.000    0.000 _bootlocale.py:33(getpreferredencoding)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:951(path_stats)
+        5    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:416(parent)
+        8    0.000    0.000    0.000    0.000 {built-in method _weakref.proxy}
+        2    0.000    0.000    0.000    0.000 MB_DPPO.py:116(__init__)
+       34    0.000    0.000    0.000    0.000 multiarray.py:707(dot)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:372(_get_formatdict)
+        5    0.000    0.000    0.000    0.000 {built-in method utcfromtimestamp}
+        1    0.000    0.000    0.000    0.000 posixpath.py:75(join)
+        1    0.000    0.000    0.000    0.000 {method 'close' of '_io.BufferedReader' objects}
+       66    0.000    0.000    0.000    0.000 {built-in method from_iterable}
+        1    0.000    0.000    0.000    0.000 synchronize.py:360(Barrier)
+        8    0.000    0.000    0.000    0.000 std.py:1157(_comparable)
+        8    0.000    0.000    0.000    0.000 std.py:1161(__hash__)
+        8    0.000    0.000    0.000    0.000 utils.py:88(__getattr__)
+       25    0.000    0.000    0.000    0.000 {method 'ndimension' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.000    0.000 utils.py:413(save)
+        8    0.000    0.000    0.000    0.000 _weakrefset.py:52(_commit_removals)
+        1    0.000    0.000    0.000    0.000 posixpath.py:64(isabs)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:151(__exit__)
+        1    0.000    0.000    0.000    0.000 synchronize.py:46(SemLock)
+       18    0.000    0.000    0.000    0.000 fromnumeric.py:2017(_clip_dispatcher)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:51(_r_long)
+        7    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:222(_verbose_message)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:362(<listcomp>)
+        9    0.000    0.000    0.000    0.000 traci.py:468(get_controlled_ids)
+        4    0.000    0.000    0.000    0.000 utils.py:385(flush)
+       36    0.000    0.000    0.000    0.000 fromnumeric.py:3033(_ndim_dispatcher)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:58(__init__)
+        5    0.000    0.000    0.000    0.000 {built-in method _imp.acquire_lock}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.locals}
+       15    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
+       12    0.000    0.000    0.000    0.000 {method 'rpartition' of 'str' objects}
+        6    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x5611c12e13c0}
+        1    0.000    0.000    0.000    0.000 serialization.py:253(_is_compressed_file)
+       11    0.000    0.000    0.000    0.000 function_base.py:726(_copy_dispatcher)
+       34    0.000    0.000    0.000    0.000 linalg.py:2312(_norm_dispatcher)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:78(acquire)
+        1    0.000    0.000    0.000    0.000 {built-in method posix.getcwd}
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:166(__init__)
+        1    0.000    0.000    0.000    0.000 MB_DPPO.py:172(storeTraj)
+       22    0.000    0.000    0.000    0.000 traci.py:310(get_junction_list)
+        9    0.000    0.000    0.000    0.000 traci.py:464(get_human_ids)
+        1    0.000    0.000    0.000    0.000 tarfile.py:164(nts)
+        3    0.000    0.000    0.000    0.000 std.py:608(<lambda>)
+        4    0.000    0.000    0.000    0.000 utils.py:231(_screen_shape_wrapper)
+        1    0.000    0.000    0.000    0.000 context.py:232(get_context)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:311(__enter__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:401(_check_name_wrapper)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:103(release)
+        1    0.000    0.000    0.000    0.000 {built-in method _locale.nl_langinfo}
+        1    0.000    0.000    0.000    0.000 {built-in method _imp._fix_co_filename}
+       11    0.000    0.000    0.000    0.000 {method 'values' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 serialization.py:277(_check_seekable)
+        2    0.000    0.000    0.000    0.000 {method 'tolist' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.000    0.000 pydev_monkey.py:1020(__init__)
+        1    0.000    0.000    0.000    0.000 _ufunc_config.py:437(__init__)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:74(<dictcomp>)
+        1    0.000    0.000    0.000    0.000 threading.py:240(__enter__)
+        5    0.000    0.000    0.000    0.000 threading.py:507(is_set)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1203(_path_importer_cache)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:369(__init__)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:62(_path_split)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:859(__exit__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:176(cb)
+        2    0.000    0.000    0.000    0.000 {method 'setter' of 'property' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.setattr}
+        4    0.000    0.000    0.000    0.000 {method 'difference' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 synchronize.py:210(Condition)
+        1    0.000    0.000    0.000    0.000 synchronize.py:90(_make_methods)
+        9    0.000    0.000    0.000    0.000 traci.py:472(get_controlled_lc_ids)
+        1    0.000    0.000    0.000    0.000 serialization.py:181(__init__)
+        1    0.000    0.000    0.000    0.000 process.py:36(current_process)
+        2    0.000    0.000    0.000    0.000 shape_base.py:424(<setcomp>)
+        2    0.000    0.000    0.000    0.000 shape_base.py:432(<listcomp>)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:715(_extendLine)
+       15    0.000    0.000    0.000    0.000 {method 'getrandbits' of '_random.Random' objects}
+        1    0.000    0.000    0.000    0.000 threading.py:243(__exit__)
+        1    0.000    0.000    0.000    0.000 threading.py:255(_is_owned)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:792(find_spec)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:143(__init__)
+        5    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+        4    0.000    0.000    0.000    0.000 {built-in method _thread.get_ident}
+        1    0.000    0.000    0.000    0.000 {method 'append' of 'collections.deque' objects}
+        7    0.000    0.000    0.000    0.000 {built-in method posix.fspath}
+       10    0.000    0.000    0.000    0.000 {method 'join' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 {method 'count' of 'bytes' objects}
+        1    0.000    0.000    0.000    0.000 synchronize.py:321(Event)
+        1    0.000    0.000    0.000    0.000

@@ -9,7 +9,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
 
     alg_args = Config()
     alg_args.n_iter = 25000
-    alg_args.n_inner_iter = 10
+    alg_args.n_inner_iter = 8
     alg_args.n_warmup = 50
     alg_args.n_model_update = int(2e3)
     alg_args.n_model_update_warmup = int(2e4)
@@ -21,10 +21,10 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.max_episode_len = 600
     alg_args.model_based = True
     alg_args.load_pretrained_model = True
-    alg_args.pretrained_model = 'checkpoints/standard_CACC_catchup_MB_DPPOAgent_30333/30000_6413.795132637025.pt'
-    alg_args.n_traj = 2048
+    alg_args.pretrained_model = 'checkpoints/standard_CACC_slowdown_MB_DPPOAgent_44410/30000_5221.156627853712.pt'
+    alg_args.n_traj = 1024
     alg_args.model_traj_length = 25
-    alg_args.model_error_thres = 5e-4
+    alg_args.model_error_thres = 2e-4
     alg_args.model_prob = 0.5
     alg_args.model_batch_size = 256
     alg_args.model_buffer_size = 15
@@ -36,16 +36,16 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.n_agent = agent_args.adj.shape[0]
     agent_args.gamma = 0.99
     agent_args.lamda = 0.5
-    agent_args.clip = 0.2
+    agent_args.clip = 0.1
     agent_args.target_kl = 7.5e-3
     agent_args.v_coeff = 1.0
     agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
-    agent_args.lr = 2e-4
+    agent_args.lr = 5e-4
     agent_args.lr_v = 5e-4
     agent_args.lr_p = 5e-4
     agent_args.n_update_v = 15 # deprecated
-    agent_args.n_update_pi = 10
+    agent_args.n_update_pi = 8
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = False

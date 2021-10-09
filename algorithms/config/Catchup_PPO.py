@@ -64,7 +64,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     pi_args = Config()
     pi_args.network = MLP
     pi_args.activation = torch.nn.ReLU
-    pi_args.sizes = [-1, 64, 64, 16]
+    pi_args.sizes = [-1, 64, 64, agent_args.action_space.n]
     pi_args.squash = False
     agent_args.pi_args = pi_args
 
