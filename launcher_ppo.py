@@ -8,6 +8,7 @@ from algorithms.utils import Config, LogClient, LogServer
 from algorithms.envs.Flow import makeFlowGrid, makeFlowGridTest, makeVectorizedFlowGridFn
 from algorithms.envs.FigureEight import makeFigureEight2, makeFigureEightTest
 from algorithms.envs.Ring import makeRingAttenuation
+from algorithms.envs.CACC import CACC_catchup, CACC_slowdown
 from algorithms.config.Eight_DMPPO import getArgs
 from algorithms.mbdppo.MB_DPPO import OnPolicyRunner
 from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
@@ -17,14 +18,14 @@ warnings.filterwarnings('ignore')
 
 def getEnvArgs():
     env_args = Config()
-    env_args.n_env = 1
-    env_args.n_cpu = 1 # per environment
+    env_args.n_env = 10
+    env_args.n_cpu = 10 # per environment
     env_args.n_gpu = 0
     return env_args
 
 def getRunArgs():
     run_args = Config()
-    run_args.n_thread = 1
+    run_args.n_thread = 10
     run_args.parallel = False
     run_args.device = 'cpu'
     run_args.n_cpu = 1/4
@@ -110,7 +111,7 @@ agent = initAgent(logger, run_args.device, alg_args.agent_args)
 
 torch.set_num_threads(run_args.n_thread)
 print(f"n_threads {torch.get_num_threads()}")
-print(f"n_gpus {torch.cuda.device_count()}")
+print(f"n_gpus {torch.cuda.device_count()}") 
 
 if run_args.profiling:
     import cProfile

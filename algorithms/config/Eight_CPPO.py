@@ -11,7 +11,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.n_iter = 25000
     alg_args.n_inner_iter = 10
     alg_args.n_warmup = 50
-    alg_args.n_model_update = int(2e3)
+    alg_args.n_model_update = int(1e4)
     alg_args.n_model_update_warmup = int(2e4)
     alg_args.n_test = 5
     alg_args.model_validate_interval = 10
@@ -19,13 +19,12 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.rollout_length = 1500
     alg_args.test_length = 1500
     alg_args.max_episode_len = 1500
-    alg_args.model_based = True
+    alg_args.model_based = False
     alg_args.load_pretrained_model = False
     alg_args.pretrained_model = 'checkpoints/standard_makeFigureEight2_MB_DPPOAgent_17361/81501_5222.7847817614875.pt'
     alg_args.n_traj = 2048
     alg_args.model_traj_length = 25
     alg_args.model_error_thres = 2e-4
-    alg_args.model_prob = 0.5
     alg_args.model_batch_size = 256
     alg_args.model_buffer_size = 15
     alg_args.model_update_length = 4
@@ -44,8 +43,8 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.lr = 5e-5
     agent_args.lr_v = 5e-5
     agent_args.lr_p = 5e-4
-    agent_args.n_update_v = 15 # deprecated
-    agent_args.n_update_pi = 10
+    agent_args.n_update_v = 15
+    agent_args.n_update_pi = 5
     agent_args.n_minibatch = 1
     agent_args.use_reduced_v = True
     agent_args.use_rtg = False

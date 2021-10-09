@@ -11,7 +11,7 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.n_iter = 25000
     alg_args.n_inner_iter = 10
     alg_args.n_warmup = 50
-    alg_args.n_model_update = int(2e3)
+    alg_args.n_model_update = int(1e4)
     alg_args.n_model_update_warmup = int(2e4)
     alg_args.n_test = 5
     alg_args.model_validate_interval = 10
@@ -19,17 +19,16 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     alg_args.rollout_length = 1500
     alg_args.test_length = 1500
     alg_args.max_episode_len = 1500
-    alg_args.model_based = True
+    alg_args.model_based = False
     alg_args.load_pretrained_model = False
     alg_args.pretrained_model = 'checkpoints/standard_makeFigureEight2_MB_DPPOAgent_17361/81501_5222.7847817614875.pt'
     alg_args.n_traj = 2048
-    alg_args.model_traj_length = 25
-    alg_args.model_error_thres = 2e-4
-    alg_args.model_prob = 0.5
+    alg_args.model_traj_length = 8
+    alg_args.model_error_thres = 0.
     alg_args.model_batch_size = 256
     alg_args.model_buffer_size = 15
-    alg_args.model_update_length = 4
-    alg_args.model_length_schedule = None
+    alg_args.model_update_length = 2
+    alg_args.model_length_schedule = lambda x: min(25, 8 + int(x/4))
 
     agent_args = Config()
     agent_args.adj = env.neighbor_mask
@@ -41,13 +40,14 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     agent_args.v_coeff = 1.0
     agent_args.v_thres = 0.
     agent_args.entropy_coeff = 0.0
-    agent_args.lr = 5e-5
-    agent_args.lr_v = 5e-5
-    agent_args.lr_p = 5e-4
-    agent_args.n_update_v = 15 # deprecated
-    agent_args.n_update_pi = 10
+    agent_args.entropy_coeff_decay = 0.0  # only in IA2C
+    agent_args.lr = 5e-4
+    agent_args.lr_v = 1e1
+    agent_args.lr_p = 1e-2 # since update time is lower
+    agent_args.n_update_v = 15
+    agent_args.n_update_pi = 1
     agent_args.n_minibatch = 1
-    agent_args.use_reduced_v = True
+    agent_args.use_reduced_v = False  # just use advantage rather than the reduced
     agent_args.use_rtg = False
     agent_args.use_gae_returns = False
     agent_args.advantage_norm = True
@@ -70,13 +70,14 @@ def getArgs(radius_p, radius_v, radius_pi, env):
     p_args.node_embed_dim = 8
     p_args.edge_hidden_size = [16, 16]
     p_args.node_hidden_size = [16, 16]
-    p_args.reward_coeff = 1.
+    p_args.reward_coeff = 10.0
     agent_args.p_args = p_args
 
     v_args = Config()
     v_args.network = MLP
     v_args.activation = torch.nn.ReLU
     v_args.sizes = [-1, 64, 64, 1]
+    v_args.hidden_dim = 64
     agent_args.v_args = v_args
 
     pi_args = Config()
