@@ -1,111 +1,91 @@
-import torch
-from ..utils import Config, collect
-from ..utils import gather as _gather
-from ..utils import reduce as _reduce
-from ..models import MLP
-from ..agents import MBPO, MultiAgent
+from gym.spaces import Box
+from numpy import pi
+import torch.nn
+from algorithms.models import MLP
+from algorithms.utils import Config
+from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent
 
-def getArgs(radius_q, radius_p, radius_pi, env):
-    gather = lambda x: gather(21, x)
-    reduce = lambda x: _reduce(21, x)
-    obs_dim = env.observation_space.shape[-1]
-    action_dim = env.action_space.n
+def getArgs(radius_p, radius_v, radius_pi, env):
 
+    alg_args = Config()
+    alg_args.n_iter = 25000
+    alg_args.n_inner_iter = 10
+    alg_args.n_warmup = 50
+    alg_args.n_model_update = int(2e3)
+    alg_args.n_model_update_warmup = int(2e4)
+    alg_args.n_test = 5
+    alg_args.model_validate_interval = 10
+    alg_args.test_interval = 20
+    alg_args.rollout_length = 3000
+    alg_args.test_length = 3000
+    alg_args.max_episode_len = 3000
+    alg_args.model_based = True
+    alg_args.load_pretrained_model = True
+    alg_args.pretrained_model = 'checkpoints/standard_makeRingAttenuation_MB_DPPOAgent_62746/164849_-5997.291270560293.pt'
+    alg_args.n_traj = 2048
+    alg_args.model_traj_length = 25
+    alg_args.model_error_thres = 2e-4
+    alg_args.model_prob = 0.5
+    alg_args.model_batch_size = 256
+    alg_args.model_buffer_size = 15
+    alg_args.model_update_length = 4
+    alg_args.model_length_schedule = None
 
-    algo_args = Config()
-    algo_args.n_warmup = 2000
-    """
-     rainbow said 2e5 samples or 5e4 updates is typical for Qlearning
-     bs256lr3e-4, it takes 2e4updates
-     for the model on CartPole to learn done...
-
-     Only 3e5 samples are needed for parameterized input continous motion control (refer to MBPO)
-     4e5 is needed fore model free CACC (refer to NeurComm)
-    """
-    algo_args.replay_size = int(1e6)
-    algo_args.imm_size = 2880
-    algo_args.max_ep_len = 3000
-    algo_args.test_interval = int(4e3)
-    algo_args.batch_size = 128  # MBPO used 256
-    algo_args.n_step = int(1e8)
-    algo_args.n_test = 5
+    agent_args = Config()
+    agent_args.adj = env.neighbor_mask
+    agent_args.n_agent = agent_args.adj.shape[0]
+    agent_args.gamma = 0.99
+    agent_args.lamda = 0.5
+    agent_args.clip = 0.2
+    agent_args.target_kl = 0.01
+    agent_args.v_coeff = 1.0
+    agent_args.v_thres = 0.
+    agent_args.entropy_coeff = 0.0
+    agent_args.lr = 5e-4
+    agent_args.lr_v = 5e-4
+    agent_args.lr_p = 5e-4
+    agent_args.n_update_v = 15
+    agent_args.n_update_pi = 10
+    agent_args.n_minibatch = 1
+    agent_args.use_reduced_v = True
+    agent_args.use_rtg = False
+    agent_args.use_gae_returns = False
+    agent_args.advantage_norm = True
+    agent_args.observation_space = env.observation_space
+    agent_args.hidden_state_dim = 8
+    agent_args.embedding_sizes = [env.observation_space.shape[0], 16, agent_args.hidden_state_dim]
+    agent_args.observation_dim = 2
+    agent_args.action_space = env.action_space
+    agent_args.adj = env.neighbor_mask
+    agent_args.radius_v = radius_v
+    agent_args.radius_pi = radius_pi
+    agent_args.radius_p = radius_p
+    agent_args.squeeze = True
 
     p_args = Config()
-    p_args.network = MLP
-    p_args.activation = torch.nn.ReLU
-    p_args.lr = 3e-4
-    p_args.sizes = [obs_dim * (1 + 2 * radius_p) ** 2, 64, 64, 64]
-    """
-    SAC used 2 layers of width 256 for all experiments,
-    MBPO used 4 layers of width 200 or 400
-    NeurComm used 1 layer LSTM of width 64
-    """
-    p_args.update_interval = 10
-    p_args.update_interval_warmup = 1
-    p_args.n_embedding = (1 + 2 * radius_p) ** 2
-    """
-     bs=32 interval=4 from rainbow Q
-     MBPO retrains fram scratch periodically
-     in principle this can be arbitrarily frequent
-    """
-    p_args.n_p = 3  # ensemble
-    p_args.refresh_interval = 50  # int(1e3) # refreshes the model buffer
-    p_args.batch_size = 8
-    # ideally rollouts should be used only once
-    p_args.branch = 1
-    p_args.roll_length = 1  # length > 1 not implemented yet
-    p_args.to_predict = 'srd'
-    # enable in gaussian commit
-    p_args.gaussian = True
-    p_args.model_buffer_size = int(algo_args.imm_size / p_args.refresh_interval * algo_args.batch_size * p_args.branch)
+    p_args.n_conv = 1
+    p_args.n_embedding = 0
+    p_args.residual = True
+    p_args.edge_embed_dim = 12
+    p_args.node_embed_dim = 8
+    p_args.edge_hidden_size = [16, 16]
+    p_args.node_hidden_size = [16, 16]
+    p_args.reward_coeff = 10.0
+    agent_args.p_args = p_args
 
-    q_args = Config()
-    q_args.network = MLP
-    q_args.activation = torch.nn.ReLU
-    q_args.lr = 8e-4
-    q_args.sizes = [obs_dim * (1 + 2 * radius_q) ** 2, 64, 64, action_dim + 1]  # 5 actions, dueling q learning
-    q_args.update_interval = 10
-    q_args.update_steps = 5
-    # MBPO used 1/40 for continous control tasks
-    # 1/20 for invert pendulum
-    q_args.n_embedding = (1 + 2 * radius_q) ** 2 - 1
+    v_args = Config()
+    v_args.network = MLP
+    v_args.activation = torch.nn.ReLU
+    v_args.sizes = [-1, 64, 64, 1]
+    agent_args.v_args = v_args
 
     pi_args = Config()
     pi_args.network = MLP
     pi_args.activation = torch.nn.ReLU
-    pi_args.lr = 3e-4
-    pi_args.sizes = [obs_dim * (1 + 2 * radius_pi) ** 2, 64, 64, action_dim]
-    pi_args.update_interval = 20
-    pi_args.update_steps = 2
-
-    agent_args = Config()
-    pInWrapper = collect({'s': gather(radius_p), 'a': gather(radius_p), '*': gather(0)})
-    #  (s, a) -> (s1, r, d), the ground truth for supervised training p
-    qInWrapper = collect({'p_a1': gather(0), 'd': gather(0), 'r': reduce2D(radius_q), '*': gather(radius_q)})
-    # s, a, r, s1, a1, p_a1, d
-    piInWrapper = collect({'s': gather(radius_pi), 'q': gather(0)})
-    wrappers = {'p_in': pInWrapper,
-                'q_in': qInWrapper,
-                'pi_in': piInWrapper}
-
-    def MultiagentMBPO(**agent_args):
-        agent_args['agent'] = MBPO
-        return MultiAgent(**agent_args)
-
-    agent_args.wrappers = wrappers
-    agent_args.agent = MultiagentMBPO
-    agent_args.n_agent = 21
-    agent_args.gamma = 0.99
-    agent_args.alpha = 0
-    agent_args.target_entropy = None
-    # 4 actions, 0.9 greedy = 0.6, 0.95 greedy= 0.37, 0.99 greedy 0.1
-    agent_args.target_sync_rate = 5e-3
-    # called tau in MBPO
-    # sync rate per update = update interval/target sync interval
-
-    agent_args.p_args = p_args
-    agent_args.q_args = q_args
+    pi_args.sizes = [-1, 64, 64, 16]
+    pi_args.squash = False
     agent_args.pi_args = pi_args
-    algo_args.agent_args = agent_args
 
-    return algo_args
+    alg_args.agent_args = agent_args
+
+    return alg_args

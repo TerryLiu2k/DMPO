@@ -50,7 +50,7 @@ def getRunArgs(input_args):
 def initArgs(run_args, env_train, env_test, input_arg):
     ref_env = env_train
 
-    if input_arg.env in ['eight', 'ring', 'catchup', 'slowdown'] or input_arg.algo in ['CPPO', 'DMPPO', 'IC3Net', 'IA2C']:
+    if input_arg.env in ['eight', 'ring', 'catchup', 'slowdown'] or input_arg.algo in ['CPPO', 'DMPO', 'IC3Net', 'IA2C']:
         env_str = input_arg.env[0].upper() + input_arg.env[1:]
         config = importlib.import_module(f"algorithms.config.{env_str}_{input_args.algo}")
 
@@ -134,7 +134,7 @@ def override(alg_args, run_args, env_fn_train, input_args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, required=False, default='catchup', help="environment(eight/ring/catchup/slowdown)")
-    parser.add_argument('--algo', type=str, required=False, default='IA2C', help="algorithm(DMPPO/IA2C/IC3NET/CPPO/DPPO) ")
+    parser.add_argument('--algo', type=str, required=False, default='IA2C', help="algorithm(DMPO/IA2C/IC3NET/CPPO/DPPO) ")
     parser.add_argument('--name', type=str, required=False, default='', help="the additional name for logger")
     parser.add_argument('--para', type=str, required=False, default='{}', help="the hyperparameter json string" )
     args = parser.parse_args()
@@ -157,7 +157,7 @@ elif input_args.algo == 'IC3Net':
     from algorithms.mbdppo.MB_DPPO import IC3Net as agent_fn
 elif input_args.algo in ['CPPO', 'DPPO']:
     from algorithms.mbdppo.MB_DPPO import DPPOAgent as agent_fn
-elif input_args.algo in ['DMPPO']:
+elif input_args.algo in ['DMPO']:
     from algorithms.mbdppo.MB_DPPO import MB_DPPOAgent as agent_fn
 
 env_args = getEnvArgs()
